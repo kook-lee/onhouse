@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OnHouse Local - 부동산 매물 관리 & 실시간 직거래 감지</title>
+  <link rel="stylesheet" href="css/style.css?v=20260820_crm_v12">
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+</head>
+<body>
+  <!-- Real-time Deal Alert Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-container">
+    <!-- 1. Top Navigation Bar (Clean & Professional) -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-logo">🏢</div>
+        <div class="brand-text">
+          <h1>OnHouse Local</h1>
+          <span class="brand-sub">스마트 부동산 & 직거래 CRM</span>
+        </div>
+      </div>
+
+      <!-- Main Navigation Tabs -->
+      <nav class="main-nav-tabs">
+        <button id="nav-tab-properties" class="nav-tab active" onclick="switchMainView('properties')">
+          <span class="nav-icon">📋</span>
+          <span class="nav-label">내 매물 장부</span>
+          <span class="nav-count" id="stat-total">0</span>
+        </button>
+        <button id="nav-tab-deals" class="nav-tab" onclick="switchMainView('danggeun')">
+          <span class="nav-icon">📡</span>
+          <span class="nav-label">실시간 직거래 탐색</span>
+          <span class="nav-count nav-count-accent" id="stat-danggeun">0</span>
+        </button>
+        <button id="nav-tab-naver" class="nav-tab" onclick="switchMainView('naver')">
+          <span class="nav-icon" style="color: #03c75a;">🟢</span>
+          <span class="nav-label">네이버 대장 검증</span>
+          <span class="nav-count" id="stat-naver-count" style="background: rgba(3, 199, 90, 0.2); color: #03c75a;">0</span>
+        </button>
+        <button id="nav-tab-customers" class="nav-tab" onclick="openCustomerModal()">
+          <span class="nav-icon">👥</span>
+          <span class="nav-label">손님 매칭 관리</span>
+          <span class="nav-count nav-count-purple" id="customer-count-badge">0</span>
+        </button>
+      </nav>
+
+      <!-- Right Header Actions & User Profile -->
+      <div class="header-right">
+        <button id="btn-naver-inspect" class="btn btn-outline" onclick="openNaverInspectModal('login')" style="border-color: #03c75a; color: #03c75a; font-weight: 800; background: rgba(3, 199, 90, 0.12); display: flex; align-items: center; gap: 6px; padding: 7px 14px; box-shadow: 0 0 10px rgba(3, 199, 90, 0.2);">
+          <span>🔐</span> 네이버 로그인 & 대장 검증
+        </button>
+        <button id="btn-add-property" class="btn btn-primary btn-add-prop">
+          <span>➕</span> 신규 매물 등록
+        </button>
+        <button id="btn-refresh" class="btn-icon" title="새로고침">🔄</button>
+        
+        <div id="user-profile-badge" class="user-badge" style="display: none;">
+          <div class="user-avatar">👤</div>
+          <span id="user-display-name" class="user-name">중개사</span>
+          <button id="btn-logout" class="btn-logout-link" title="로그아웃">로그아웃</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 2. Sub Control Bar (Contextual Action Bar) -->
+    <div id="sub-control-bar" class="sub-control-bar">
+      <!-- (A) 내 장부 모드일 때의 서브바 -->
+      <div id="sub-bar-properties" class="sub-bar-content">
+        <div class="quick-stats">
+          <span class="stat-pill"><span class="pill-dot dot-green"></span> 공실 <strong id="stat-vacant">0</strong>건</span>
+          <span class="stat-pill">월세 <strong id="stat-monthly">0</strong>건</span>
+          <span class="stat-pill">전세 <strong id="stat-jeonse">0</strong>건</span>
+        </div>
+        <div class="sub-bar-actions">
+          <span style="font-size: 0.8rem; color: #94a3b8;">🔒 SQLite 로컬 영구 암호화 저장소</span>
+        </div>
+      </div>
+
+      <!-- (B) 실시간 직거래 모드일 때의 서브바 -->
+      <div id="sub-bar-deals" class="sub-bar-content" style="display: none;">
+        <div class="deal-filter-group">
+          <!-- 채널 탭 -->
+          <div class="channel-pill-tabs">
+            <button class="channel-tab-btn active" data-channel="all">전체 (<span id="count-all">0</span>)</button>
+            <button class="channel-tab-btn tab-peterpan" data-channel="피터팬">🏠 피터팬 (<span id="count-peterpan">0</span>)</button>
+            <button class="channel-tab-btn tab-daangn" data-channel="당근">🥕 당근 (<span id="count-daangn">0</span>)</button>
+          </div>
+
+          <!-- 기간 선택 -->
+          <div class="crawl-period-box">
+            <span class="period-label">📅 수집 기간</span>
+            <select id="crawl-days-select" class="period-select">
+              <option value="1">최근 1일 이내</option>
+              <option value="3" selected>최근 3일 이내 (추천)</option>
+              <option value="7">최근 7일 이내</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="deal-action-buttons">
+          <button id="btn-run-crawler" onclick="triggerCrawler(false)" class="btn btn-accent btn-sm">
+            <span>📡</span> 지금 수집
+          </button>
+          <button id="btn-reset-crawler" onclick="triggerCrawler(true)" class="btn btn-secondary btn-sm btn-reset-crawler" title="임시 목록 초기화 후 깨끗하게 새로 수집">
+            <span>🧹</span> 초기화 후 수집
+          </button>
+        </div>
+      </div>
+
+      <!-- (C) 네이버 대장 검증 모드일 때의 서브바 -->
+      <div id="sub-bar-naver" class="sub-bar-content" style="display: none; align-items: center; justify-content: space-between; width: 100%; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="stat-pill" style="border-color: #03c75a; background: rgba(3, 199, 90, 0.08); padding: 4px 10px;">
+            <span class="pill-dot" style="background: #03c75a;"></span>
+            🏢 연동 업소: <strong id="sub-naver-agency" style="color: #03c75a; margin-left: 4px;">미연동</strong>
+          </span>
+          <button type="button" class="btn btn-outline btn-sm" onclick="openRealtorSettingsModal()" style="border-color: #03c75a; color: #03c75a; font-size: 11px; padding: 4px 10px; font-weight: 700;">
+            🔐 네이버 로그인/중개사 연동
+          </button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" class="btn btn-primary btn-sm" onclick="openNaverBulkModal()" style="background: #03c75a; border-color: #03c75a; font-weight: 700; font-size: 12px; padding: 6px 14px;">
+            ➕ 매물 일괄 등록 (붙여넣기)
+          </button>
+          <button type="button" class="btn btn-accent btn-sm" onclick="runAuditAllListings()" id="btn-audit-all" style="font-weight: 700; font-size: 12px; padding: 6px 14px; background: #3b82f6; border-color: #3b82f6;">
+            ⚡ 미검증 대장 일괄 검증
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="importSelectedNaverListings()" style="font-size: 12px; padding: 6px 12px;">
+            📥 선택 매물 내 장부로 저장
+          </button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="clearAllNaverListings()" style="font-size: 11px; padding: 4px 8px; color: #ef4444; border-color: rgba(239, 68, 68, 0.4);" title="목록 비우기">
+            🗑️ 비우기
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Main Workspace -->
+    <main class="workspace">
+      <!-- 2-1. Left: Search & Filters -->
+      <aside class="filter-panel">
+        <div class="panel-header">
+          <h2>🔍 상세 필터 검색</h2>
+        </div>
+        
+        <form id="filter-form">
+          <div class="form-group">
+            <label for="search-query">통합 검색</label>
+            <input type="text" id="search-query" class="input-text" placeholder="제목, 주소, 비번, 메모 검색...">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="filter-property-type">매물 종류</label>
+              <select id="filter-property-type" class="select-box">
+                <option value="">전체</option>
+                <option value="원룸">원룸</option>
+                <option value="투룸/쓰리룸">투룸/쓰리룸</option>
+                <option value="오피스텔">오피스텔</option>
+                <option value="아파트">아파트</option>
+                <option value="상가/사무실">상가/사무실</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="filter-trans-type">거래 구분</label>
+              <select id="filter-trans-type" class="select-box">
+                <option value="">전체</option>
+                <option value="월세">월세</option>
+                <option value="전세">전세</option>
+                <option value="매매">매매</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="filter-max-deposit">최대 보증금 (만원)</label>
+              <input type="number" id="filter-max-deposit" class="input-text" placeholder="0: 무제한" step="100">
+            </div>
+            <div class="form-group">
+              <label for="filter-max-rent">최대 월세 (만원)</label>
+              <input type="number" id="filter-max-rent" class="input-text" placeholder="0: 무제한" step="5">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="filter-status">공실 상태</label>
+            <select id="filter-status" class="select-box">
+              <option value="">전체</option>
+              <option value="공실">공실 (즉시입주)</option>
+              <option value="계약완료">계약완료</option>
+              <option value="보류">보류/거래중</option>
+            </select>
+          </div>
+
+          <div class="checkbox-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="chk-parking"> 🚗 주차 가능
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="chk-elevator"> 🛗 엘리베이터 있음
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="chk-pets"> 🐶 반려동물 협의 가능
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="chk-exclude-violating"> 🛡️ 위반건축물 제외
+            </label>
+          </div>
+
+          <button type="submit" class="btn btn-primary full-width">필터 적용</button>
+          <button type="button" id="btn-reset-filter" class="btn btn-secondary full-width">초기화</button>
+        </form>
+      </aside>
+
+      <!-- 2-2. Middle: Property List / Direct Deals -->
+      <section class="list-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2 id="list-title">📋 등록된 매물 목록 (<span id="list-count">0</span>건)</h2>
+            <span id="view-mode-indicator" class="badge badge-primary">내 장부</span>
+          </div>
+
+          <!-- Bulk Action Bar (Direct Deal Mode) -->
+          <div id="bulk-action-bar" class="bulk-action-bar" style="display: none;">
+            <label class="checkbox-label" style="font-weight: 700; color: #38bdf8;">
+              <input type="checkbox" id="check-select-all" /> 전체 선택 (<span id="selected-count">0</span>개)
+            </label>
+            <button id="btn-import-bulk" class="btn btn-sm btn-success" disabled>📥 선택한 매물 한번에 내 장부로 가져오기</button>
+          </div>
+        </div>
+
+        <div id="property-list" class="property-grid">
+          <!-- Rendered via JS -->
+        </div>
+
+        <!-- Danggeun Deal List (Toggle View) -->
+        <div id="danggeun-list" class="property-grid" style="display: none;">
+          <!-- Rendered via JS -->
+        </div>
+
+        <!-- Naver Audit Hub View (Toggle View) -->
+        <div id="naver-list-wrap" style="display: none; flex-direction: column; height: 100%; gap: 10px;">
+          <!-- Naver KPI Summary Cards -->
+          <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;">
+            <div class="naver-kpi-btn active" onclick="filterNaverListings('all')" id="kpi-btn-all" style="cursor: pointer; background: #1e293b; padding: 8px 10px; border-radius: 6px; border: 1px solid #38bdf8; text-align: center;">
+              <div style="font-size: 11px; color: #94a3b8;">전체 매물</div>
+              <div id="kpi-naver-total" style="font-size: 16px; font-weight: 800; color: #f8fafc; margin-top: 2px;">0</div>
+            </div>
+            <div class="naver-kpi-btn" onclick="filterNaverListings('Safe')" id="kpi-btn-safe" style="cursor: pointer; background: rgba(16, 185, 129, 0.08); padding: 8px 10px; border-radius: 6px; border: 1px solid #10b981; text-align: center;">
+              <div style="font-size: 11px; color: #10b981;">✅ 정상 일치</div>
+              <div id="kpi-naver-safe" style="font-size: 16px; font-weight: 800; color: #10b981; margin-top: 2px;">0</div>
+            </div>
+            <div class="naver-kpi-btn" onclick="filterNaverListings('Warning')" id="kpi-btn-warning" style="cursor: pointer; background: rgba(245, 158, 11, 0.08); padding: 8px 10px; border-radius: 6px; border: 1px solid #f59e0b; text-align: center;">
+              <div style="font-size: 11px; color: #f59e0b;">⚠️ 확인 요망</div>
+              <div id="kpi-naver-warning" style="font-size: 16px; font-weight: 800; color: #f59e0b; margin-top: 2px;">0</div>
+            </div>
+            <div class="naver-kpi-btn" onclick="filterNaverListings('Danger')" id="kpi-btn-danger" style="cursor: pointer; background: rgba(239, 68, 68, 0.08); padding: 8px 10px; border-radius: 6px; border: 1px solid #ef4444; text-align: center;">
+              <div style="font-size: 11px; color: #ef4444;">🚨 과태료 위험</div>
+              <div id="kpi-naver-danger" style="font-size: 16px; font-weight: 800; color: #ef4444; margin-top: 2px;">0</div>
+            </div>
+            <div class="naver-kpi-btn" onclick="filterNaverListings('Pending')" id="kpi-btn-pending" style="cursor: pointer; background: #1e293b; padding: 8px 10px; border-radius: 6px; border: 1px solid #475569; text-align: center;">
+              <div style="font-size: 11px; color: #cbd5e1;">⏳ 미검증</div>
+              <div id="kpi-naver-pending" style="font-size: 16px; font-weight: 800; color: #cbd5e1; margin-top: 2px;">0</div>
+            </div>
+          </div>
+
+          <!-- Progress Bar for Live Batch Audit -->
+          <div id="naver-audit-progress-wrap" style="display: none; background: #1e293b; border-radius: 6px; padding: 8px 12px; border: 1px solid #03c75a;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: #03c75a; font-weight: 700; margin-bottom: 4px;">
+              <span id="naver-progress-label">건축물대장 실시간 전수 대조 중...</span>
+              <span id="naver-progress-percent">0%</span>
+            </div>
+            <div style="width: 100%; height: 6px; background: #334155; border-radius: 3px; overflow: hidden;">
+              <div id="naver-progress-bar" style="width: 0%; height: 100%; background: #03c75a; transition: width 0.2s;"></div>
+            </div>
+          </div>
+
+          <!-- Bulk Selection Subbar -->
+          <div style="display: flex; align-items: center; justify-content: space-between; background: #0f172a; padding: 6px 10px; border-radius: 6px; border: 1px solid #334155;">
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; cursor: pointer;">
+              <input type="checkbox" id="check-naver-select-all" onchange="toggleSelectAllNaverListings(this.checked)">
+              전체 선택 (<span id="naver-selected-count">0</span>개)
+            </label>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" class="btn btn-outline btn-sm" onclick="importSelectedNaverListings()" style="font-size: 11px; padding: 3px 8px; color: #38bdf8; border-color: #38bdf8;">
+                📥 선택 내 장부로 저장
+              </button>
+              <button type="button" class="btn btn-outline btn-sm" onclick="deleteSelectedNaverListings()" style="font-size: 11px; padding: 3px 8px; color: #ef4444; border-color: rgba(239, 68, 68, 0.4);">
+                🗑️ 선택 삭제
+              </button>
+            </div>
+          </div>
+
+          <!-- Naver Listings Container -->
+          <div id="naver-list" class="property-grid" style="overflow-y: auto; flex: 1;">
+            <!-- Rendered via JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- 2-3. Right: Property Details & Briefing -->
+      <section class="detail-panel">
+        <div id="empty-detail" class="empty-state">
+          <div class="empty-icon">👉</div>
+          <p>목록에서 매물을 선택해주세요.</p>
+        </div>
+
+        <!-- Property Detail View (내 장부 매물 상세) -->
+        <div id="active-detail" style="display: none;">
+          <div id="detail-header-wrap"></div>
+          <div id="detail-title" class="detail-title"></div>
+          <div id="detail-price" class="detail-price"></div>
+
+          <!-- 사진 미리보기 갤러리 박스 (내 장부) -->
+          <div id="prop-image-container" style="display: none; flex-direction: column; gap: 8px; margin-bottom: 16px; padding: 0 10px;">
+            <div style="font-size: 0.85rem; font-weight: 700; color: #38bdf8;">
+              📸 실제 첨부된 방 사진 (<span id="prop-photo-count">0</span>장)
+            </div>
+            <div id="prop-gallery-grid" style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin;">
+              <!-- JS에서 동적 이미지 태그 삽입 -->
+            </div>
+          </div>
+
+          <!-- Detail Tabs -->
+          <div class="tab-nav">
+            <button class="tab-btn active" data-tab="specs">📌 상세/비밀장부</button>
+            <button class="tab-btn" data-tab="briefing">💬 카톡 브리핑</button>
+            <button class="tab-btn" data-tab="terms">📜 안전 특약</button>
+          </div>
+
+          <!-- Tab 1: Specs & Landlord Secret Memo & Contact History -->
+          <div id="tab-specs" class="tab-pane active">
+            <!-- ⚡ Quick Status Action Bar -->
+            <div class="status-action-bar">
+              <span class="status-bar-label">⚡ 매물 상태:</span>
+              <div class="status-btn-group">
+                <button class="status-chip chip-new" onclick="updateCurrentPropertyStatus('신규')">🆕 신규</button>
+                <button class="status-chip chip-checking" onclick="updateCurrentPropertyStatus('확인중')">📞 확인중</button>
+                <button class="status-chip chip-alive" onclick="updateCurrentPropertyStatus('생존확인')">✅ 생존확인</button>
+                <button class="status-chip chip-sold" onclick="updateCurrentPropertyStatus('이미나감')">❌ 이미나감</button>
+                <button class="status-chip chip-deal" onclick="updateCurrentPropertyStatus('거래진행중')">🤝 진행중</button>
+              </div>
+            </div>
+
+            <!-- 🙋 Matched Customers Card (if any) -->
+            <div id="matched-customer-card" class="matched-customer-card" style="display: none;">
+              <div class="matched-header">🙋 이 매물 조건과 일치하는 손님</div>
+              <div id="matched-customer-text" class="matched-body"></div>
+            </div>
+
+            <div class="spec-card">
+              <div class="spec-row"><span class="spec-label">소재지</span><span id="spec-address" class="spec-val"></span></div>
+              <div class="spec-row"><span class="spec-label">종류/구분</span><span id="spec-type" class="spec-val"></span></div>
+              <div class="spec-row"><span class="spec-label">해당층/전체</span><span id="spec-floor" class="spec-val"></span></div>
+              <div class="spec-row"><span class="spec-label">전용면적</span><span id="spec-area" class="spec-val"></span></div>
+              <div class="spec-row"><span class="spec-label">관리비</span><span id="spec-maintenance" class="spec-val"></span></div>
+            </div>
+
+            <!-- Secret Landlord Info (Protected Memo) -->
+            <div class="secret-card">
+              <div class="secret-header">🔒 임대인 비밀 장부 (비공개)</div>
+              <div class="spec-row"><span class="spec-label">임대인(집주인)</span><span id="secret-owner-name" class="spec-val highlight-green"></span></div>
+              <div class="spec-row"><span class="spec-label">연락처</span><span id="secret-owner-phone" class="spec-val highlight-green"></span></div>
+              <div class="memo-box">
+                <div class="spec-label">비밀 메모 (호실 비밀번호 / 원문 링크 / 협의 사항)</div>
+                <div id="secret-memo-text" class="memo-text"></div>
+              </div>
+            </div>
+
+            <!-- 📞 Contact & Call History Log -->
+            <div class="contact-history-card">
+              <div class="contact-history-header">
+                <span>📞 통화 및 컨택 이력 (<span id="contact-log-count">0</span>)</span>
+                <button class="btn btn-xs btn-accent" onclick="openAddContactLogModal()">+ 통화 기록</button>
+              </div>
+              <div id="contact-log-timeline" class="contact-timeline">
+                <!-- JS에서 동적 렌더링 -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 2: Kakao Briefing -->
+          <div id="tab-briefing" class="tab-pane">
+            <p class="tab-desc">손님에게 카톡이나 문자로 바로 전송할 수 있는 깔끔한 추천 양식입니다.</p>
+            <textarea id="briefing-text" class="textarea-output" readonly></textarea>
+            <button id="btn-copy-briefing" class="btn btn-success full-width" style="margin-top: 10px;">📋 손님 브리핑 문구 복사하기</button>
+          </div>
+
+          <!-- Tab 3: Contract Terms -->
+          <div id="tab-terms" class="tab-pane">
+            <p class="tab-desc">계약서 작성 시 보증금 보호 및 분쟁 예방을 위한 권장 특약입니다.</p>
+            <textarea id="terms-text" class="textarea-output" readonly></textarea>
+            <button id="btn-copy-terms" class="btn btn-primary full-width" style="margin-top: 10px;">📋 계약서 안전 특약 복사하기</button>
+          </div>
+        </div>
+
+        <!-- Direct Deal Detail View (직거래 매물 실시간 클릭 요약) -->
+        <div id="deal-detail" style="display: none;">
+          <div id="deal-detail-header"></div>
+          <div id="deal-detail-title" class="detail-title"></div>
+          <div id="deal-detail-price" class="detail-price"></div>
+
+          <!-- 사진 미리보기 갤러리 박스 -->
+          <div id="deal-image-container" style="display: none; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+            <div style="font-size: 0.85rem; font-weight: 700; color: #38bdf8;">
+              📸 실제 첨부된 방 사진 (<span id="deal-photo-count">0</span>장)
+            </div>
+            <div id="deal-gallery-grid" style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin;">
+              <!-- JS에서 동적 이미지 태그 삽입 -->
+            </div>
+          </div>
+
+          <div class="spec-card">
+            <div class="spec-row"><span class="spec-label">출처</span><span id="deal-detail-channel" class="spec-val highlight-green"></span></div>
+            <div class="spec-row"><span class="spec-label">추정 위치</span><span id="deal-detail-region" class="spec-val"></span></div>
+            <div class="spec-row"><span class="spec-label">작성자</span><span id="deal-detail-author" class="spec-val"></span></div>
+            <div class="spec-row"><span class="spec-label">감지 시간</span><span id="deal-detail-time" class="spec-val"></span></div>
+          </div>
+
+          <div class="secret-card" style="background: #141f31; border-color: #1e3a8a;">
+            <div class="secret-header" style="color: #60a5fa;">📝 실시간 수집 원문 상세 내용</div>
+            <div id="deal-detail-desc" class="memo-text" style="color: #e2e8f0; font-size: 0.95rem; line-height: 1.6;"></div>
+          </div>
+
+          <div style="display: flex; gap: 10px; margin-top: 16px;">
+            <button id="btn-deal-import-now" class="btn btn-accent" style="flex: 1; padding: 12px; font-weight: 700;">📥 지금 내 장부로 가져오기</button>
+            <a id="btn-deal-web-link" href="#" target="_blank" class="btn btn-primary" style="padding: 12px 18px; text-decoration: none; font-weight: 700; background: #2563eb;">🌐 피터팬/당근 원문 전체 보기 &gt;</a>
+          </div>
+        </div>
+
+        <!-- Naver Listing Detail View (대장 대조 1:1 리포트) -->
+        <div id="naver-detail" style="display: none;">
+          <div id="naver-detail-header" style="margin-bottom: 12px;"></div>
+          <div id="naver-detail-title" class="detail-title" style="font-size: 1.15rem; margin-bottom: 4px;"></div>
+          <div id="naver-detail-price" class="detail-price" style="font-size: 1.25rem; margin-bottom: 14px;"></div>
+
+          <!-- 실시간 종합 대조 배너 -->
+          <div id="naver-detail-banner" style="padding: 12px 14px; border-radius: 8px; margin-bottom: 14px; font-weight: 700; font-size: 13px;"></div>
+
+          <!-- 핵심 대조표 -->
+          <div style="margin-bottom: 14px; border: 1px solid #334155; border-radius: 8px; overflow: hidden;">
+            <div style="background: #1e293b; padding: 8px 12px; font-size: 12px; font-weight: 700; color: #94a3b8;">
+              ⚖️ 네이버 등록 정보 vs 건축물대장 1:1 대조 분석표
+            </div>
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+              <thead style="background: #0f172a; color: #64748b; border-bottom: 1px solid #334155;">
+                <tr>
+                  <th style="padding: 8px 10px; text-align: left;">항목</th>
+                  <th style="padding: 8px 10px; text-align: left;">네이버 광고</th>
+                  <th style="padding: 8px 10px; text-align: left;">건축물대장</th>
+                  <th style="padding: 8px 10px; text-align: left;">판정</th>
+                </tr>
+              </thead>
+              <tbody id="naver-detail-discrepancy-tbody" style="background: #0f172a;">
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 네이버 vs 대장 요약 카드 -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
+            <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px 12px; font-size: 11px;">
+              <div style="font-weight: 700; color: #6ee7b7; margin-bottom: 6px;">🟢 네이버 등록 정보</div>
+              <div id="naver-detail-specs" style="color: #cbd5e1; display: flex; flex-direction: column; gap: 4px;"></div>
+            </div>
+            <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px 12px; font-size: 11px;">
+              <div style="font-weight: 700; color: #a5b4fc; margin-bottom: 6px;">🏛️ 공공 건축물대장</div>
+              <div id="naver-detail-ledger" style="color: #cbd5e1; display: flex; flex-direction: column; gap: 4px;"></div>
+            </div>
+          </div>
+
+          <!-- 하단 액션 버튼 그룹 -->
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="btn-naver-audit-single" class="btn btn-accent" style="flex: 1; padding: 10px; font-weight: 700; font-size: 13px;">
+              ⚡ 이 매물 대장 재검증
+            </button>
+            <button id="btn-naver-import-prop" class="btn btn-primary" style="flex: 1; padding: 10px; font-weight: 700; font-size: 13px; background: #03c75a; border-color: #03c75a;">
+              📥 내 장부로 저장
+            </button>
+            <a id="btn-naver-web-link" href="#" target="_blank" class="btn btn-outline" style="padding: 10px 14px; text-decoration: none; font-size: 12px; border-color: #475569; color: #cbd5e1;">
+              🌐 네이버 원문 &gt;
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- 3. Bottom Status Bar -->
+    <footer class="app-footer">
+      <div id="status-msg">준비 완료</div>
+      <div>영구 DB: SQLite (%LocalAppData%/OnHouseLocal/onhouse.db) | 보안 인증 가동 중</div>
+    </footer>
+  </div>
+
+  <!-- 4. Property Add/Edit Modal -->
+  <div id="property-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-title">신규 매물 등록</h3>
+        <button id="btn-modal-close" class="btn-close">&times;</button>
+      </div>
+      <form id="property-form">
+        <input type="hidden" id="prop-id">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="prop-title">매물명 (노출 제목) *</label>
+            <input type="text" id="prop-title" class="input-text" placeholder="예: 신림역 도보 3분 신축 풀옵션 원룸" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="prop-property-type">매물 종류</label>
+              <select id="prop-property-type" class="select-box">
+                <option value="원룸">원룸</option>
+                <option value="투룸/쓰리룸">투룸/쓰리룸</option>
+                <option value="오피스텔">오피스텔</option>
+                <option value="아파트">아파트</option>
+                <option value="상가/사무실">상가/사무실</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="prop-trans-type">거래 구분</label>
+              <select id="prop-trans-type" class="select-box">
+                <option value="월세">월세</option>
+                <option value="전세">전세</option>
+                <option value="매매">매매</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="prop-deposit">보증금 / 전세가 (만원) *</label>
+              <input type="number" id="prop-deposit" class="input-text" placeholder="500" required>
+            </div>
+            <div class="form-group">
+              <label for="prop-rent">월세 (만원)</label>
+              <input type="number" id="prop-rent" class="input-text" placeholder="45" value="0">
+            </div>
+            <div class="form-group">
+              <label for="prop-maintenance">관리비 (만원)</label>
+              <input type="number" id="prop-maintenance" class="input-text" placeholder="5" value="0">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="prop-address">기본 주소 * (도로명 / 지번)</label>
+            <div style="display: flex; gap: 6px;">
+              <input type="text" id="prop-address" class="input-text" placeholder="예: 서울 중랑구 묵동 164-32" required style="flex: 1;">
+              <button type="button" id="btn-search-postcode" style="white-space: nowrap; background: #0284c7; border: none; padding: 0 12px; font-weight: 600; cursor: pointer; border-radius: 6px; color: #fff; font-size: 13px; display: flex; align-items: center; gap: 4px; transition: all 0.2s;">
+                🔍 주소 검색
+              </button>
+              <button type="button" id="btn-check-ledger" style="white-space: nowrap; background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none; padding: 0 12px; font-weight: 600; cursor: pointer; border-radius: 6px; color: #fff; font-size: 13px; display: flex; align-items: center; gap: 4px; transition: all 0.2s;">
+                🏛️ 대장 1초 대조
+              </button>
+            </div>
+            <!-- 건축물대장 실시간 정보 카드 -->
+            <div id="ledger-result-card" style="display: none; margin-top: 8px; padding: 10px 12px; border-radius: 6px; background: #1e1b4b; border: 1px solid #6366f1; font-size: 12px; color: #c7d2fe;">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="prop-detail-address">상세 주소 / 호실</label>
+            <input type="text" id="prop-detail-address" class="input-text" placeholder="예: 302호">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="prop-floor">해당 층</label>
+              <input type="number" id="prop-floor" class="input-text" value="2">
+            </div>
+            <div class="form-group">
+              <label for="prop-total-floor">전체 층</label>
+              <input type="number" id="prop-total-floor" class="input-text" value="4">
+            </div>
+            <div class="form-group">
+              <label for="prop-area">전용면적 (㎡)</label>
+              <input type="number" id="prop-area" class="input-text" step="0.1" value="23.1">
+            </div>
+          </div>
+
+          <div class="checkbox-group">
+            <label class="checkbox-label"><input type="checkbox" id="prop-chk-elevator"> 🛗 엘리베이터</label>
+            <label class="checkbox-label"><input type="checkbox" id="prop-chk-parking"> 🚗 주차 가능</label>
+            <label class="checkbox-label"><input type="checkbox" id="prop-chk-pets"> 🐶 반려동물 협의 가능</label>
+            <label class="checkbox-label"><input type="checkbox" id="prop-chk-loan" checked> 🏦 전세대출 가능</label>
+            <label class="checkbox-label"><input type="checkbox" id="prop-chk-violating"> ⚠️ 위반건축물 여부</label>
+          </div>
+
+          <!-- 실시간 허위광고/과태료 방지 자가진단 패널 -->
+          <div id="safety-guard-panel" style="margin-top: 14px; border-radius: 8px; padding: 12px 14px; border: 1px solid #374151; background: #111827;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+              <span style="font-weight: 700; font-size: 13px; color: #e5e7eb; display: flex; align-items: center; gap: 6px;">
+                🛡️ 허위매물·과태료 사전 안심 진단
+              </span>
+              <span id="safety-guard-badge" style="background: #065f46; color: #34d399; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 12px;">
+                ✅ 입력 정상
+              </span>
+            </div>
+            <div id="safety-guard-issues" style="font-size: 12px; color: #9ca3af; line-height: 1.6;">
+              층수, 엘리베이터, 주차, 위반건축물 등 공인중개사법 필수 표시 항목을 실시간 감시합니다.
+            </div>
+          </div>
+
+          <!-- Secret Landlord Fields -->
+          <div style="background: #251623; border: 1px solid #831843; padding: 12px; border-radius: 8px; margin-top: 10px;">
+            <h4 style="color: #f472b6; margin-bottom: 8px;">🔒 임대인 비밀 정보 (손님에게 노출되지 않음)</h4>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="prop-owner-name">임대인 성함</label>
+                <input type="text" id="prop-owner-name" class="input-text" placeholder="예: 김건물">
+              </div>
+              <div class="form-group">
+                <label for="prop-owner-phone">임대인 연락처</label>
+                <input type="text" id="prop-owner-phone" class="input-text" placeholder="예: 010-1234-5678">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="prop-secret-memo">호실 비번 및 비밀 특이사항</label>
+              <textarea id="prop-secret-memo" class="textarea-input" rows="3" placeholder="예: 비번 *1234* / 낮 2시 이후 방문 / 보증금 500 조율 가능"></textarea>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 10px;">
+            <label for="prop-status">공실 상태</label>
+            <select id="prop-status" class="select-box">
+              <option value="공실">공실 (즉시입주)</option>
+              <option value="계약완료">계약완료</option>
+              <option value="보류">보류</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" id="btn-modal-cancel" class="btn btn-secondary" onclick="closeModal()">취소</button>
+          <button type="submit" class="btn btn-primary">매물 저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 6. 통화 및 컨택 이력 추가 모달 -->
+  <div id="modal-add-contact-log" class="modal-overlay">
+    <div class="modal-card" style="width: 440px;">
+      <div class="modal-header">
+        <h3>📞 통화 및 컨택 기록 추가</h3>
+        <button type="button" class="btn-close" onclick="closeAddContactLogModal()">✕</button>
+      </div>
+      <form id="contact-log-form">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="log-contact-type">컨택 방법</label>
+            <select id="log-contact-type" class="select-box">
+              <option value="전화">📞 전화 통화</option>
+              <option value="문자">💬 문자/카톡</option>
+              <option value="방문">🚶 현장 방문</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="log-result">통화/확인 결과 (매물 상태 자동 연동)</label>
+            <select id="log-result" class="select-box">
+              <option value="생존확인">✅ 생존 확인 (방 살아있음)</option>
+              <option value="이미나감">❌ 이미 나감 (계약완료/허위)</option>
+              <option value="통화중/부재">⏳ 통화중 / 부재중</option>
+              <option value="거래진행">🤝 거래 진행중 (계약 협의)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="log-memo">상세 메모 (통화 내용, 협의 조건, 비번 등)</label>
+            <textarea id="log-memo" class="textarea-input" rows="3" placeholder="예: 9월말 입주 가능, 보증금 500 조율 가능하다고 하심. 낮 시간 언제든 방문 가능." required></textarea>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeAddContactLogModal()">취소</button>
+          <button type="submit" class="btn btn-primary">기록 저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 7. 손님 조건 등록 및 관리 모달 -->
+  <div id="modal-customer-manager" class="modal-overlay">
+    <div class="modal-card" style="width: 720px; max-width: 95vw;">
+      <div class="modal-header">
+        <h3>👥 손님 관리 & 실시간 조건 매칭</h3>
+        <button type="button" class="btn-close" onclick="closeCustomerModal()">✕</button>
+      </div>
+      <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+        <!-- 손님 신규 등록 폼 -->
+        <div style="background: #1e293b; padding: 14px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #334155;">
+          <h4 style="color: #a855f7; margin-bottom: 12px;">➕ 손님 의뢰 조건 등록</h4>
+          <form id="customer-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="cust-name">손님 성함/별칭 *</label>
+                <input type="text" id="cust-name" class="input-text" placeholder="예: 김철수 (신림원룸)" required>
+              </div>
+              <div class="form-group">
+                <label for="cust-phone">연락처</label>
+                <input type="text" id="cust-phone" class="input-text" placeholder="예: 010-9999-8888">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="cust-prop-type">희망 매물 종류</label>
+                <select id="cust-prop-type" class="select-box">
+                  <option value="전체">전체 무관</option>
+                  <option value="원룸" selected>원룸</option>
+                  <option value="투룸">투룸/쓰리룸</option>
+                  <option value="오피스텔">오피스텔</option>
+                  <option value="아파트">아파트</option>
+                  <option value="상가">상가/사무실</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="cust-trans-type">희망 거래 구분</label>
+                <select id="cust-trans-type" class="select-box">
+                  <option value="월세" selected>월세</option>
+                  <option value="전세">전세</option>
+                  <option value="매매">매매</option>
+                  <option value="전체">전체</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="cust-max-deposit">최대 보증금 (만원)</label>
+                <input type="number" id="cust-max-deposit" class="input-text" placeholder="예: 1000" value="1000" step="100">
+              </div>
+              <div class="form-group">
+                <label for="cust-max-rent">최대 월세 (만원)</label>
+                <input type="number" id="cust-max-rent" class="input-text" placeholder="예: 50" value="50" step="5">
+              </div>
+              <div class="form-group">
+                <label for="cust-region">희망 지역 (콤마 구분)</label>
+                <input type="text" id="cust-region" class="input-text" placeholder="예: 관악구, 신림, 봉천" value="관악구">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="cust-memo">손님 특이사항 / 입주일자 메모</label>
+              <input type="text" id="cust-memo" class="input-text" placeholder="예: 9월 중순 입주 희망, 반려동물 강아지 1마리 있음. 주차 필수.">
+            </div>
+
+            <button type="submit" class="btn btn-primary full-width" style="margin-top: 8px;">💾 손님 의뢰 등록하기</button>
+          </form>
+        </div>
+
+        <!-- 손님 목록 -->
+        <h4 style="color: #cbd5e1; margin-bottom: 10px;">📋 등록된 손님 목록 (<span id="customer-list-count">0</span>명)</h4>
+        <div id="customer-list-container" class="customer-list-grid">
+          <!-- JS에서 동적 렌더링 -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. 실시간 수집 진행 상태 및 로그 모니터링 모달 -->
+  <div id="modal-crawler-progress" class="modal-overlay">
+    <style>
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+    <div class="modal-card" style="width: 580px; max-width: 95vw;">
+      <div class="modal-header">
+        <h3>📡 실시간 직거래 매물 수집기</h3>
+        <button type="button" class="btn-close" id="btn-crawler-progress-close" onclick="closeCrawlerProgressModal()" style="display: none;">✕</button>
+      </div>
+      <div class="modal-body" style="padding-top: 10px;">
+        <!-- 로딩 애니메이션 및 프로그레스 상태 -->
+        <div style="text-align: center; margin-bottom: 20px;">
+          <div class="spinner" id="crawler-spinner" style="margin: 0 auto 12px; width: 48px; height: 48px; border: 4px solid rgba(255,255,255,0.1); border-top-color: #38bdf8; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+          <div id="crawler-status-title" style="font-size: 1.1rem; font-weight: 700; color: #38bdf8; margin-bottom: 8px;">실시간 매물을 안전하게 수집하는 중...</div>
+          <div id="crawler-status-desc" style="font-size: 0.9rem; color: #94a3b8; margin-bottom: 12px;">네이버 카페 및 당근마켓 실매물 수집 패킷을 감지하고 있습니다.</div>
+          
+          <!-- 상세 로그 보기 버튼 -->
+          <button type="button" id="btn-toggle-crawler-log" class="btn btn-sm btn-secondary" onclick="toggleCrawlerLogs()" style="font-size: 0.8rem; padding: 6px 12px; margin-top: 5px;">
+            🔍 상세 수집 로그 보기
+          </button>
+        </div>
+
+        <!-- 실시간 로그 박스 (기본 숨김) -->
+        <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 12px; height: 220px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; color: #a7f3d0; line-height: 1.5; word-break: break-all; display: none;" id="crawler-log-box">
+          <!-- 실시간 로그 라인이 기록됨 -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 0.8rem; color: #64748b;">⚠️ 수집 중에는 프로그램을 종료하지 마세요. (약 3~5분 소요)</span>
+          <button type="button" id="btn-crawler-progress-confirm" class="btn btn-primary" onclick="closeCrawlerProgressModal()" style="display: none;">확인</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Security Login / Invite-Code Register Modal -->
+  <div id="auth-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card" style="width: 440px;">
+      <div class="modal-header" style="justify-content: center; position: relative;">
+        <h3 id="auth-title">🏢 OnHouse Local 보안 로그인</h3>
+      </div>
+
+      <div class="auth-tabs" style="display: flex; border-bottom: 1px solid #334155; margin-bottom: 16px;">
+        <button id="tab-login-btn" class="auth-tab-btn active" onclick="switchAuthTab('login')">로그인</button>
+        <button id="tab-register-btn" class="auth-tab-btn" onclick="switchAuthTab('register')">가입 승인 코드 등록</button>
+      </div>
+
+      <!-- Login Form -->
+      <form id="login-form">
+        <div class="modal-body" style="padding-top: 0;">
+          <div class="form-group">
+            <label for="login-username">아이디</label>
+            <input type="text" id="login-username" class="input-text" placeholder="아이디 입력" required>
+          </div>
+          <div class="form-group">
+            <label for="login-password">비밀번호</label>
+            <input type="password" id="login-password" class="input-text" placeholder="비밀번호 입력" required>
+          </div>
+          <div id="login-error" style="color: #ef4444; font-size: 0.85rem; margin-top: 6px; display: none;"></div>
+          <button type="submit" class="btn btn-primary full-width" style="margin-top: 14px; padding: 12px;">🔐 로그인</button>
+        </div>
+      </form>
+
+      <!-- Register Form -->
+      <form id="register-form" style="display: none;">
+        <div class="modal-body" style="padding-top: 0;">
+          <div class="form-group">
+            <label for="reg-invite" style="color: #fbbf24; font-weight: 800;">🔑 가입 승인 코드 (필수) *</label>
+            <input type="password" id="reg-invite" class="input-text" placeholder="대표님께 부여받은 승인 코드 입력" style="border-color: #f59e0b;" required>
+          </div>
+          <div class="form-group">
+            <label for="reg-username">아이디 *</label>
+            <input type="text" id="reg-username" class="input-text" placeholder="사용할 아이디" required>
+          </div>
+          <div class="form-group">
+            <label for="reg-password">비밀번호 *</label>
+            <input type="password" id="reg-password" class="input-text" placeholder="안전한 비밀번호" required>
+          </div>
+          <div class="form-group">
+            <label for="reg-name">중개사 성명 *</label>
+            <input type="text" id="reg-name" class="input-text" placeholder="예: 홍길동" required>
+          </div>
+          <div class="form-group">
+            <label for="reg-agency">부동산 상호명</label>
+            <input type="text" id="reg-agency" class="input-text" placeholder="예: 온하우스 부동산중개">
+          </div>
+          <div id="reg-error" style="color: #ef4444; font-size: 0.85rem; margin-top: 6px; display: none;"></div>
+          <button type="submit" class="btn btn-accent full-width" style="margin-top: 14px; padding: 12px;">✅ 승인 코드 검증 및 가입</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 6. 허위매물/과태료 방지 2중 자가진단 확인 모달 -->
+  <div id="safety-confirm-modal" class="modal-overlay" style="display: none; z-index: 9999;">
+    <div class="modal-card" style="max-width: 520px; border: 2px solid #ef4444; box-shadow: 0 20px 25px -5px rgba(239, 68, 68, 0.25);">
+      <div class="modal-header" style="background: #450a0a; border-bottom: 1px solid #7f1d1d;">
+        <h3 style="color: #fca5a5; display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px;">
+          🚨 허위매물 과태료 주의 자가진단표
+        </h3>
+        <button id="btn-safety-modal-close" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+        <p style="font-size: 13px; color: #fca5a5; margin-bottom: 12px; line-height: 1.5;">
+          공인중개사법 제18조의2(표시·광고) 기준, 아래 항목이 실제 건물 상태나 설명글과 불일치하여 <b>최대 500만원 이하의 과태료 처분</b>을 받을 위험이 있습니다.
+        </p>
+        <div id="safety-confirm-list" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+          <!-- 위험 목록 동적 렌더링 -->
+        </div>
+        <div style="background: #18181b; padding: 10px 12px; border-radius: 6px; font-size: 12px; color: #a1a1aa; margin-bottom: 16px;">
+          💡 <b>[원클릭 자동 수정 후 등록]</b>을 누르면 추천된 정상 값으로 즉시 수정되어 안전하게 저장됩니다.
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button type="button" id="btn-safety-ignore-save" class="btn-secondary" style="font-size: 12px; background: #27272a; color: #a1a1aa; border: 1px solid #3f3f46; padding: 8px 14px; border-radius: 6px; cursor: pointer;">
+            무시하고 그대로 등록
+          </button>
+          <button type="button" id="btn-safety-autofix-save" class="btn-primary" style="font-size: 13px; background: linear-gradient(135deg, #ef4444, #dc2626); border: none; font-weight: 700; padding: 8px 18px; border-radius: 6px; color: #fff; cursor: pointer;">
+            ✨ 원클릭 자동 수정 후 등록
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. 네이버 매물 URL 검증 & 건축물대장 대조 모달 -->
+  <div id="naver-inspect-modal" class="modal-overlay" style="display: none; z-index: 9998;">
+    <div class="modal-card" style="max-width: 820px; max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="background: #022c16; border-bottom: 1px solid #065f46;">
+        <h3 style="color: #6ee7b7; display: flex; align-items: center; gap: 8px; margin: 0; font-size: 17px; font-weight: 700;">
+          <span style="background: #03c75a; color: #fff; font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 800;">NAVER</span>
+          네이버 매물 URL 검증 & 건축물대장 대조 분석
+        </h3>
+        <button id="btn-naver-modal-close" class="btn-close" onclick="closeNaverInspectModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 20px; overflow-y: auto;">
+        <!-- 상단 탭 선택: 네이버 로그인 연동 vs 매물 일괄 등록 vs 단일 URL 검증 -->
+        <div style="display: flex; gap: 8px; border-bottom: 1px solid #334155; margin-bottom: 16px; padding-bottom: 8px;">
+          <button type="button" id="tab-naver-mode-login" class="btn btn-sm active" onclick="switchNaverModalTab('login')" style="background: #03c75a; color: #fff; font-weight: 700; border-radius: 6px; padding: 8px 16px;">
+            🔐 네이버 로그인 (내 계정 연동)
+          </button>
+          <button type="button" id="tab-naver-mode-bulk" class="btn btn-sm btn-secondary" onclick="switchNaverModalTab('bulk')" style="background: #1e293b; color: #94a3b8; font-weight: 700; border-radius: 6px; padding: 8px 16px;">
+            ➕ 매물 일괄 등록 (여러 링크/번호 붙여넣기)
+          </button>
+          <button type="button" id="tab-naver-mode-url" class="btn btn-sm btn-secondary" onclick="switchNaverModalTab('url')" style="background: #1e293b; color: #94a3b8; font-weight: 700; border-radius: 6px; padding: 8px 16px;">
+            🔍 단일 매물 1:1 대장 대조
+          </button>
+        </div>
+
+        <!-- 탭 1: 네이버 아이디 & 비밀번호 로그인 및 내 매물 연동 영역 -->
+        <div id="naver-tab-content-login" style="display: block;">
+          <div style="background: #0f172a; padding: 14px 16px; border-radius: 8px; border: 1px solid #03c75a; margin-bottom: 16px; font-size: 13px; color: #cbd5e1; line-height: 1.6;">
+            <div style="font-weight: 700; color: #6ee7b7; font-size: 14px; margin-bottom: 4px;">
+              🔐 네이버 공인중개사 계정 정보 입력
+            </div>
+            아이디와 비밀번호를 저장해두시면, 네이버 부동산에 등록된 <b>내 매물 목록을 불러와 건축물대장과 1초 만에 전수 교차 검증</b>할 수 있습니다.<br>
+            <span style="font-size: 11px; color: #94a3b8;">🔒 입력하신 네이버 계정 정보는 외부 전송 없이 내 PC의 <b>로컬 암호화 SQLite</b>에만 안전하게 저장됩니다.</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+            <div>
+              <label for="naver-login-id" style="font-size: 13px; font-weight: 700; color: #6ee7b7; display: block; margin-bottom: 6px;">🆔 네이버 아이디 *</label>
+              <input type="text" id="naver-login-id" class="input-text" style="width: 100%; padding: 11px 14px; font-size: 14px; background: #0b1320; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="예: naver_realtor_id">
+            </div>
+            <div>
+              <label for="naver-login-pw" style="font-size: 13px; font-weight: 700; color: #6ee7b7; display: block; margin-bottom: 6px;">🔑 네이버 비밀번호 *</label>
+              <div style="position: relative;">
+                <input type="password" id="naver-login-pw" class="input-text" style="width: 100%; padding: 11px 14px; font-size: 14px; background: #0b1320; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="네이버 비밀번호 입력">
+                <button type="button" onclick="togglePasswordVisibility('naver-login-pw', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 14px;">👁️</button>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px;">
+            <div>
+              <label for="naver-login-agency" style="font-size: 12px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">🏢 중개사무소 상호명</label>
+              <input type="text" id="naver-login-agency" class="input-text" style="width: 100%; padding: 10px 12px; font-size: 13px; background: #0b1320; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="예: 온하우스공인중개사사무소">
+            </div>
+            <div>
+              <label for="naver-login-realtor-id" style="font-size: 12px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">🔗 중개사 회원번호 또는 매물 링크 (선택)</label>
+              <input type="text" id="naver-login-realtor-id" class="input-text" style="width: 100%; padding: 10px 12px; font-size: 13px; background: #0b1320; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="중개사 ID 또는 올리신 매물 링크 아무거나">
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 10px; margin-bottom: 18px;">
+            <button type="button" id="btn-save-naver-account" class="btn btn-secondary" onclick="saveRealtorSettings()" style="padding: 12px 18px; font-weight: 700; font-size: 13px;">
+              💾 계정 정보 로컬 저장
+            </button>
+            <button type="button" id="btn-do-naver-login" class="btn btn-primary" onclick="runNaverLoginAndFetch()" style="flex: 1; background: #03c75a; border-color: #03c75a; font-weight: 800; padding: 12px; font-size: 14px;">
+              🚀 네이버 로그인 및 내 매물 목록 불러오기
+            </button>
+            <button type="button" class="btn btn-accent" onclick="runAuditAllListings()" id="btn-modal-audit-all" style="padding: 12px 18px; font-weight: 800; font-size: 13px; display: none; background: #3b82f6;">
+              ⚡ 불러온 매물 대장 전수 검증 시작
+            </button>
+          </div>
+
+          <!-- 내 매물 대시보드 요약 및 테이블 영역 -->
+          <div id="naver-realtor-listing-area" style="display: none; border-top: 1px solid #334155; padding-top: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <h4 style="margin: 0; font-size: 14px; color: #f8fafc; font-weight: 700;">
+                📋 연동된 내 매물 목록 (<span id="naver-modal-list-count">0</span>건)
+              </h4>
+              <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn btn-accent btn-sm" onclick="runAuditAllListings()" style="font-size: 12px; font-weight: 700; padding: 6px 12px;">
+                  ⚡ 대장 전수 검증
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="importAllCheckedToProperties()" style="font-size: 12px; padding: 6px 12px;">
+                  📥 검증 매물 내 장부 저장
+                </button>
+              </div>
+            </div>
+            <div id="naver-modal-listing-tbody" style="max-height: 260px; overflow-y: auto; border: 1px solid #334155; border-radius: 6px;">
+              <!-- 동적 매물 목록 삽입 -->
+            </div>
+          </div>
+        </div>
+
+        <!-- 탭 2: 매물 일괄 등록 (여러 URL / 매물번호 붙여넣기) -->
+        <div id="naver-tab-content-bulk" style="display: none;">
+          <div style="background: #0f172a; padding: 12px 14px; border-radius: 8px; border: 1px solid #1e293b; margin-bottom: 14px; font-size: 13px; color: #cbd5e1; line-height: 1.5;">
+            📋 <b>여러 매물 한 번에 붙여넣기:</b> 네이버 부동산에서 올리신 매물 URL 링크나 매물 번호들을 줄바꿈으로 구분하여 여러 개 붙여넣으시면, <b>모든 매물의 실시간 스펙을 한 번에 수집</b>하여 등록합니다.
+          </div>
+          <div style="margin-bottom: 14px;">
+            <label for="naver-bulk-text" style="font-size: 12px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 6px;">
+              매물 URL 링크 또는 매물 번호 목록 (한 줄에 하나씩)
+            </label>
+            <textarea id="naver-bulk-text" class="input-text" rows="6" style="width: 100%; padding: 10px 12px; font-size: 12px; font-family: monospace; line-height: 1.5; resize: vertical;" placeholder="예시:
+https://fin.land.naver.com/map?layer=NobwRAlgJmBcYEMBOAXCBjANgUwPpWxQQkzABowAHZBAWwGc5xk0tsBJGeAJgDYAWAOwAOfv2EAGXmAC+FetmToAFgAUaDJjJkBdIA
+2647844806
+https://new.land.naver.com/rooms?articleNo=2647844806"></textarea>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('naver-bulk-text').value = ''">
+              지우기
+            </button>
+            <button type="button" id="btn-do-naver-bulk" class="btn btn-primary" onclick="runNaverBulkRegister()" style="background: #03c75a; border-color: #03c75a; font-weight: 700; padding: 10px 20px;">
+              ➕ 매물 일괄 등록 및 스펙 수집
+            </button>
+          </div>
+        </div>
+
+        <!-- 탭 3: 단일 URL 직접 입력 영역 -->
+        <div id="naver-tab-content-url" style="display: none;">
+          <p style="font-size: 13px; color: #94a3b8; margin-bottom: 14px; line-height: 1.5;">
+            네이버 부동산 매물 링크(URL) 또는 매물번호를 입력하면, <b>네이버에 등록된 스펙과 실제 국토교통부 건축물대장을 실시간으로 교차 비교</b>하여 허위매물/과태료 위험을 자동 진단합니다.
+          </p>
+          <div style="display: flex; gap: 8px; margin-bottom: 20px;">
+            <input type="text" id="naver-inspect-url" class="input-text" style="flex: 1; padding: 12px 14px; font-size: 13px;" placeholder="네이버 매물 URL 붙여넣기 (예: https://fin.land.naver.com/map?layer=... 또는 매물번호)">
+            <button type="button" id="btn-do-naver-inspect" class="btn btn-primary" onclick="runNaverInspect()" style="background: #03c75a; border-color: #03c75a; font-weight: 700; padding: 0 20px; white-space: nowrap;">
+              🔍 대조 검증 실행
+            </button>
+          </div>
+        </div>
+
+        <!-- 로딩 스피너 -->
+        <div id="naver-inspect-loading" style="display: none; text-align: center; padding: 30px 0;">
+          <div class="spinner" style="margin: 0 auto 12px auto; width: 32px; height: 32px; border: 3px solid #334155; border-top-color: #03c75a; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+          <div style="font-size: 14px; color: #a7f3d0; font-weight: 600;">네이버 매물 및 건축물대장 암호화 통신 조회 중...</div>
+          <div style="font-size: 12px; color: #64748b; margin-top: 4px;">매물 스펙 분석 및 국토교통부 표제부 교차 대조를 수행하고 있습니다.</div>
+        </div>
+
+        <!-- 검증 결과 영역 -->
+        <div id="naver-inspect-result" style="display: none;">
+          <!-- 종합 진단 배너 -->
+          <div id="naver-overall-banner" style="padding: 14px 16px; border-radius: 8px; margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between;">
+            <div id="naver-overall-text" style="font-size: 14px; font-weight: 700;"></div>
+            <button id="btn-import-from-naver" class="btn btn-accent" onclick="importNaverPropertyToForm()" style="font-size: 12px; padding: 6px 12px; font-weight: 700;">
+              📥 이 매물 내 장부로 가져오기
+            </button>
+          </div>
+
+          <!-- 대조 검증 표 -->
+          <div style="margin-bottom: 20px;">
+            <h4 style="font-size: 14px; color: #f1f5f9; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+              <span>⚖️</span> 핵심 정보 교차 대조표
+            </h4>
+            <div style="border: 1px solid #334155; border-radius: 8px; overflow: hidden;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: left;">
+                <thead style="background: #1e293b; color: #94a3b8; font-size: 12px; border-bottom: 1px solid #334155;">
+                  <tr>
+                    <th style="padding: 10px 12px; width: 18%;">검증 항목</th>
+                    <th style="padding: 10px 12px; width: 28%;">네이버 등록 광고</th>
+                    <th style="padding: 10px 12px; width: 28%;">국토부 건축물대장</th>
+                    <th style="padding: 10px 12px; width: 26%;">판정 및 비고</th>
+                  </tr>
+                </thead>
+                <tbody id="naver-discrepancy-tbody" style="background: #0f172a;">
+                  <!-- 동적 행 생성 -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 세부 정보 2분할 카드 -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+            <!-- 네이버 매물 정보 카드 -->
+            <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 14px;">
+              <h5 style="color: #6ee7b7; font-size: 13px; margin: 0 0 10px 0; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+                <span style="background: #03c75a; color: #fff; font-size: 10px; padding: 1px 4px; border-radius: 3px;">N</span> 네이버 매물 상세
+              </h5>
+              <div id="naver-card-details" style="font-size: 12px; color: #cbd5e1; display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
+
+            <!-- 건축물대장 정보 카드 -->
+            <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 14px;">
+              <h5 style="color: #a5b4fc; font-size: 13px; margin: 0 0 10px 0; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+                <span>🏛️</span> 건축물대장 표제부
+              </h5>
+              <div id="ledger-card-details" style="font-size: 12px; color: #cbd5e1; display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+  <script src="js/app.js?v=20260908_naver_fix2"></script>
+</body>
+</html>

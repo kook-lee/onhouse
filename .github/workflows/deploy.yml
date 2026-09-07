@@ -1,0 +1,90 @@
+﻿name: Build and Release OnHouse
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Generate Version Tag
+      id: vars
+      shell: bash
+      run: |
+        VERSION="1.0.${{ github.run_number }}"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Build OnHouseLocal
+      run: |
+        dotnet publish OnHouseLocal.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish-local
+
+    - name: Build OnHouseLauncher
+      run: |
+        dotnet publish OnHouseLauncher/OnHouseLauncher.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish-launcher
+
+    - name: Generate version.json and version.txt for updates
+      shell: pwsh
+      run: |
+        $ver = "${{ steps.vars.outputs.version }}"
+        $tag = "${{ steps.vars.outputs.tag }}"
+        $json = @{
+            version = $ver
+            downloadUrl = "https://github.com/${{ github.repository }}/releases/download/$tag/OnHouseLocal.exe"
+            launcherUrl = "https://github.com/${{ github.repository }}/releases/download/$tag/OnHouseLauncher.exe"
+            releaseNotes = "Automated release $tag from commit ${{ github.sha }}"
+            publishedAt = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+        } | ConvertTo-Json -Depth 5
+        Set-Content -Path "./publish-local/version.json" -Value $json -Encoding UTF8
+        Set-Content -Path "./publish-local/version.txt" -Value $ver -Encoding UTF8
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.vars.outputs.tag }}
+        name: "OnHouse Release ${{ steps.vars.outputs.tag }}"
+        body: |
+          🚀 **OnHouse 자동 빌드 및 배포 (${{ steps.vars.outputs.tag }})**
+          
+          - 커밋: `${{ github.sha }}`
+          - 빌드 일시: ${{ github.event.head_commit.timestamp || github.event.created_at }}
+          
+          ### 📦 다운로드 안내
+          - **추천 (스마트 런처)**: `OnHouseLauncher.exe` (실행 시 항상 최신 버전 자동 체크 및 업데이트 후 실행)
+          - **독립 실행 파일**: `OnHouseLocal.exe`
+        files: |
+          publish-local/OnHouseLocal.exe
+          publish-launcher/OnHouseLauncher.exe
+          publish-local/version.json
+          publish-local/version.txt
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Deploy to OCI VPS (Fallback mirror)
+      if: env.OCI_SSH_KEY != ''
+      shell: bash
+      env:
+        OCI_SSH_KEY: ${{ secrets.OCI_SSH_KEY }}
+        OCI_HOST: "134.185.122.169"
+        OCI_USER: "ubuntu"
+      run: |
+        mkdir -p ~/.ssh
+        echo "$OCI_SSH_KEY" > ~/.ssh/oci_key
+        chmod 600 ~/.ssh/oci_key
+        scp -o StrictHostKeyChecking=no -i ~/.ssh/oci_key ./publish-local/OnHouseLocal.exe $OCI_USER@$OCI_HOST:/var/www/onhouse/updates/ || true
+        scp -o StrictHostKeyChecking=no -i ~/.ssh/oci_key ./publish-launcher/OnHouseLauncher.exe $OCI_USER@$OCI_HOST:/var/www/onhouse/updates/ || true
+        scp -o StrictHostKeyChecking=no -i ~/.ssh/oci_key ./publish-local/version.json $OCI_USER@$OCI_HOST:/var/www/onhouse/updates/ || true
