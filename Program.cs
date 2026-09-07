@@ -479,14 +479,20 @@ try
             return Results.BadRequest(new { success = false, message = "입력된 내용에서 유효한 네이버 매물번호를 찾지 못했습니다." });
         }
 
-        var (successCount, failedCount, errors) = await naverService.RegisterMultipleArticlesAsync(numbers.ToList(), uId, db);
+        bool skipAudited = req.SkipAlreadyAudited ?? true;
+        var (successCount, failedCount, skippedCount, errors) = await naverService.RegisterMultipleArticlesAsync(numbers.ToList(), uId, db, skipAudited);
         var currentList = await db.GetNaverListingsAsync(uId);
+        string summaryMsg = skippedCount > 0
+            ? $"신규 매물 {successCount}건 수집 완료! (이미 대장 검수 완료된 {skippedCount}건은 안전하게 건너뛰었습니다)"
+            : $"신규 매물 {successCount}건 수집이 완료되었습니다.";
         return Results.Ok(new
         {
             success = true,
             totalRequested = numbers.Count,
             successCount,
+            skippedCount,
             failedCount,
+            message = summaryMsg,
             errors,
             listings = currentList
         });
@@ -500,16 +506,24 @@ try
     });
 
     // 5. 전체/미검증 매물 일괄 대장 전수 검증
-    app.MapPost("/api/naver/listings/audit-all", async (int? userId, NaverLandService naverService, BuildingLedgerService ledgerService, DatabaseService db) =>
+    app.MapPost("/api/naver/listings/audit-all", async (int? userId, bool? forceAll, NaverLandService naverService, BuildingLedgerService ledgerService, DatabaseService db) =>
     {
         int uId = userId ?? 1;
+        bool recheckAll = forceAll ?? false;
         var list = await db.GetNaverListingsAsync(uId);
+
+        // 이미 검수(Safe/Warning/Danger) 완료된 매물은 보존하고, 미검증(Pending 또는 실패) 매물만 스마트하게 선별 검증
+        var targetList = recheckAll
+            ? list
+            : list.Where(x => string.IsNullOrEmpty(x.LedgerStatus) || x.LedgerStatus == "Pending" || x.LedgerStatus == "Failed").ToList();
+
+        int skippedAlreadyAudited = list.Count - targetList.Count;
         int audited = 0;
         int safeCount = 0;
         int warningCount = 0;
         int dangerCount = 0;
 
-        foreach (var item in list)
+        foreach (var item in targetList)
         {
             var res = await naverService.AuditListingAsync(item.Id, ledgerService, db);
             audited++;
@@ -521,13 +535,19 @@ try
         }
 
         var updatedList = await db.GetNaverListingsAsync(uId);
+        string resultMsg = skippedAlreadyAudited > 0
+            ? $"미검증 매물 {audited}건 대장 전수 검증 완료! (이미 검수 완료된 {skippedAlreadyAudited}건은 기존 결과 그대로 안전하게 보존되었습니다)"
+            : $"매물 {audited}건의 건축물대장 전수 검증이 완료되었습니다.";
+
         return Results.Ok(new
         {
             success = true,
             totalAudited = audited,
+            skippedAlreadyAudited,
             safeCount,
             warningCount,
             dangerCount,
+            message = resultMsg,
             listings = updatedList
         });
     });
@@ -749,7 +769,7 @@ public record LoginRequest(string Username, string Password);
 public record BulkImportRequest(List<int> Ids, int UserId);
 public record CrawlerRunRequest(bool Reset = false);
 public record NaverInspectRequest(string Url);
-public record NaverBulkRegisterRequest(string? Text, List<string>? ArticleNumbers, int? UserId);
+public record NaverBulkRegisterRequest(string? Text, List<string>? ArticleNumbers, int? UserId, bool? SkipAlreadyAudited = true);
 public class StatusUpdateRequest
 {
     [System.Text.Json.Serialization.JsonPropertyName("status")]

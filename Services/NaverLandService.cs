@@ -584,20 +584,34 @@ namespace OnHouseLocal.Services
 
         /// <summary>
         /// 여러 매물 번호를 입력받아 네이버에서 스펙을 수집하고 DB에 신규/갱신 저장
+        /// (이미 등록되어 대장 검수(Safe/Warning/Danger)가 완료된 매물은 불필요하게 네이버에서 재수집하지 않고 안전하게 건너뜁니다)
         /// </summary>
-        public async Task<(int successCount, int failedCount, List<string> errors)> RegisterMultipleArticlesAsync(
+        public async Task<(int successCount, int failedCount, int skippedCount, List<string> errors)> RegisterMultipleArticlesAsync(
             List<string> articleNumbers, 
             int userId, 
-            DatabaseService db)
+            DatabaseService db,
+            bool skipAlreadyAudited = true)
         {
             int success = 0;
             int failed = 0;
+            int skipped = 0;
             var errors = new List<string>();
 
             foreach (var artNo in articleNumbers)
             {
                 try
                 {
+                    // 1. 이미 DB에 등록되어 있고 대장 검수(Safe, Warning, Danger)가 완료된 매물은 중복 수집 방지
+                    if (skipAlreadyAudited)
+                    {
+                        var existing = await db.GetNaverListingByArticleNumberAsync(artNo, userId);
+                        if (existing != null && !string.IsNullOrEmpty(existing.LedgerStatus) && existing.LedgerStatus != "Pending")
+                        {
+                            skipped++;
+                            continue;
+                        }
+                    }
+
                     var detail = await FetchNaverArticleAsync(artNo);
                     if (detail == null)
                     {
@@ -649,7 +663,7 @@ namespace OnHouseLocal.Services
                 }
             }
 
-            return (success, failed, errors);
+            return (success, failed, skipped, errors);
         }
 
         private static string FormatMoney(long amount)

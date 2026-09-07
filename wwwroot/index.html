@@ -982,7 +982,10 @@
         <!-- 탭 2: 매물 일괄 등록 (여러 URL / 매물번호 붙여넣기) -->
         <div id="naver-tab-content-bulk" style="display: none;">
           <div style="background: #0f172a; padding: 12px 14px; border-radius: 8px; border: 1px solid #1e293b; margin-bottom: 14px; font-size: 13px; color: #cbd5e1; line-height: 1.5;">
-            📋 <b>여러 매물 한 번에 붙여넣기:</b> 네이버 부동산에서 올리신 매물 URL 링크나 매물 번호들을 줄바꿈으로 구분하여 여러 개 붙여넣으시면, <b>모든 매물의 실시간 스펙을 한 번에 수집</b>하여 등록합니다.
+            📋 <b>여러 매물 한 번에 붙여넣기:</b> 네이버 부동산에서 올리신 매물 URL 링크나 매물 번호들을 줄바꿈으로 구분하여 여러 개 붙여넣으시면, <b>모든 매물의 실시간 스펙을 한 번에 수집</b>하여 등록합니다.<br>
+            <span style="display: inline-block; margin-top: 6px; color: #6ee7b7; font-size: 12px;">
+              🛡️ <b>중복 및 기검수 보호:</b> 이미 등록되어 대장 검수가 완료된 매물은 불필요하게 다시 가져오지 않고 건너뛰어, 기존 검수 결과를 안전하게 보존합니다.
+            </span>
           </div>
           <div style="margin-bottom: 14px;">
             <label for="naver-bulk-text" style="font-size: 12px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 6px;">
@@ -1079,6 +1082,6 @@ https://new.land.naver.com/rooms?articleNo=2647844806"></textarea>
   </div>
 
   <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-  <script src="js/app.js?v=20260908_naver_fix2"></script>
+  <script src="js/app.js?v=20260908_skip_audited"></script>
 </body>
 </html>

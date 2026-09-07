@@ -2264,14 +2264,19 @@ window.runNaverLoginAndFetch = async function() {
     await saveRealtorSettings(true);
 
     if (realtorInput) {
-      await fetch('/api/naver/listings/register-bulk', {
+      const bRes = await fetch('/api/naver/listings/register-bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: realtorInput,
-          userId: currentUser ? currentUser.id : 1
+          userId: currentUser ? currentUser.id : 1,
+          skipAlreadyAudited: true
         })
       });
+      const bData = await bRes.json();
+      if (bData && bData.message) {
+        showToastNotification('📋 매물 연동 결과', bData.message, 'ℹ️');
+      }
     }
 
     await loadNaverListings();
@@ -2303,7 +2308,7 @@ window.runNaverBulkRegister = async function() {
   }
 
   btn.disabled = true;
-  btn.innerHTML = '⏳ 매물 스펙 분석 및 수집 중...';
+  btn.innerHTML = '⏳ 신규 매물 스펙 분석 및 수집 중...';
 
   try {
     const res = await fetch('/api/naver/listings/register-bulk', {
@@ -2311,7 +2316,8 @@ window.runNaverBulkRegister = async function() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         text,
-        userId: currentUser ? currentUser.id : 1
+        userId: currentUser ? currentUser.id : 1,
+        skipAlreadyAudited: true
       })
     });
 
@@ -2325,12 +2331,16 @@ window.runNaverBulkRegister = async function() {
     await loadNaverListings();
     loadModalListingTable();
 
-    showToastNotification('➕ 매물 일괄 등록 완료', data.message, '🟢');
+    showToastNotification('➕ 매물 등록 결과', data.message, '🟢');
 
-    if (confirm(`${data.successCount}건의 매물이 등록되었습니다.\n지금 바로 공공 건축물대장 전수 대조 검증을 실행하시겠습니까?`)) {
-      closeNaverInspectModal();
-      switchMainView('naver');
-      runAuditAllListings();
+    if (data.successCount > 0) {
+      if (confirm(`${data.message}\n\n지금 바로 신규 매물에 대한 공공 건축물대장 전수 대조 검증을 실행하시겠습니까?`)) {
+        closeNaverInspectModal();
+        switchMainView('naver');
+        runAuditAllListings();
+      }
+    } else if (data.skippedCount > 0) {
+      alert(`입력하신 매물은 이미 대장 검수가 완료되어 기존 결과를 안전하게 보존하였습니다.\n(신규 수집: 0건 / 기존 검수완료 건너뜀: ${data.skippedCount}건)`);
     }
   } catch (err) {
     console.error(err);
@@ -2707,12 +2717,12 @@ window.runAuditAllListings = async function() {
   }, 400);
 
   try {
-    const res = await fetch(`/api/naver/listings/audit-all?userId=${uId}`, { method: 'POST' });
+    const res = await fetch(`/api/naver/listings/audit-all?userId=${uId}&forceAll=false`, { method: 'POST' });
     clearInterval(timer);
 
     if (bar) bar.style.width = '100%';
     if (percentEl) percentEl.textContent = '100%';
-    if (labelEl) labelEl.textContent = '대장 전수 검증 완료!';
+    if (labelEl) labelEl.textContent = '대장 검증 완료!';
 
     const data = await res.json();
     await loadNaverListings();
@@ -2720,7 +2730,7 @@ window.runAuditAllListings = async function() {
 
     if (selectedNaverListingId) selectNaverListing(selectedNaverListingId);
 
-    showToastNotification('⚡ 대장 전수 검증 완료', data.message, '🏛️');
+    showToastNotification('⚡ 대장 전수 검증 완료', data.message || '건축물대장 대조가 완료되었습니다.', '🏛️');
 
     setTimeout(() => {
       if (progressWrap) progressWrap.style.display = 'none';
