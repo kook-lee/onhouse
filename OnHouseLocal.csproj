@@ -25,6 +25,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="OnHouseLauncher\**" />
+    <EmbeddedResource Remove="OnHouseLauncher\**" />
+    <None Remove="OnHouseLauncher\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="wwwroot\**" />
   </ItemGroup>
 
