@@ -669,10 +669,10 @@ try
         int uId = req.UserId ?? 1;
         if (string.IsNullOrWhiteSpace(req.Id) || string.IsNullOrWhiteSpace(req.Password))
         {
-            return Results.BadRequest(new { success = false, message = "이실장 아이디(휴대폰 번호)와 비밀번호를 모두 입력해주세요." });
+            return Results.BadRequest(new { success = false, message = "이실장 아이디(휴대폰 번호)와 비밀번호를 모두 입력해주세요.", logs = new List<string> { "아이디 혹은 비밀번호가 입력되지 않았습니다." } });
         }
 
-        var (success, message, extractedCount, successCount, skippedCount, failedCount, errors) =
+        var (success, message, extractedCount, successCount, skippedCount, failedCount, errors, logs) =
             await aiPartnerService.LoginAndFetchListingsAsync(req.Id.Trim(), req.Password.Trim(), req.AgencyName, req.RealtorInput, uId, db, naverService);
 
         var currentList = await db.GetNaverListingsAsync(uId);
@@ -685,6 +685,7 @@ try
             skippedCount,
             failedCount,
             errors,
+            logs,
             listings = currentList
         });
     });

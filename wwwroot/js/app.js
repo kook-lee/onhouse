@@ -2270,13 +2270,36 @@ window.importFromClipboardAndAudit = async function() {
   }
 };
 
-// 이실장(AI실장 / aipartner.plus) 일반 아이디 로그인 및 내 매물 목록 불러오기
+// 클립보드에 이실장 1초 전송 스크립트 복사
+window.copyBookmarkletScript = function() {
+  const script = "(function(){const m=document.body.innerText.match(/\\b\\d{9,11}\\b/g)||[];const u=[...new Set(m)];if(!u.length){alert('화면에서 매물번호를 찾지 못했습니다.');return;}fetch('http://localhost:5000/api/naver/listings/register-bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({articleNumbers:u,userId:1})}).then(r=>r.json()).then(d=>alert('🎉 온하우스로 '+u.length+'건 매물 전송 완료! 온하우스 창을 확인하세요.')).catch(e=>alert('온하우스 전송 실패: '+e));})();";
+  navigator.clipboard.writeText(script).then(() => {
+    alert('✅ [온하우스 1초 전송 스크립트]가 복사되었습니다!\n\n사용법:\n현재 띄워두신 AI실장 브라우저 창에서 F12(개발자도구) -> Console(콘솔) 탭에 붙여넣기(Ctrl+V) 후 Enter를 누르시면, 현재 화면의 109건 매물이 온하우스로 즉시 날아옵니다!');
+  }).catch(() => {
+    prompt('아래 스크립트를 복사하여 AI실장 창의 F12 콘솔에 붙여넣으세요:', script);
+  });
+};
+
+// 로그 클립보드 복사
+window.copyAiPartnerLogs = function() {
+  const content = document.getElementById('aipartner-log-content');
+  if (content && content.textContent) {
+    navigator.clipboard.writeText(content.textContent).then(() => {
+      showToastNotification('📋 로그 복사', '실시간 통신 로그가 클립보드에 복사되었습니다.', 'ℹ️');
+    });
+  }
+};
+
+// 이실장(AI실장 / aipartner.com) 로그인 및 내 매물 목록 불러오기
 window.runAiPartnerLoginAndFetch = async function() {
   const idEl = document.getElementById('naver-login-id');
   const pwEl = document.getElementById('naver-login-pw');
   const agencyEl = document.getElementById('naver-login-agency');
   const realtorIdEl = document.getElementById('naver-login-realtor-id');
   const btn = document.getElementById('btn-do-naver-login');
+
+  const logBox = document.getElementById('aipartner-log-container');
+  const logContent = document.getElementById('aipartner-log-content');
 
   const memberId = idEl ? idEl.value.trim() : '';
   const memberPw = pwEl ? pwEl.value.trim() : '';
@@ -2290,8 +2313,13 @@ window.runAiPartnerLoginAndFetch = async function() {
     return;
   }
 
+  if (logBox) logBox.style.display = 'block';
+  if (logContent) {
+    logContent.textContent = `[${new Date().toLocaleTimeString()}] 🚀 이실장 서버(${memberId}) 접속 시작...\n[${new Date().toLocaleTimeString()}] 🔑 보안 세션 및 CSRF 토큰 협상 중...`;
+  }
+
   btn.disabled = true;
-  btn.innerHTML = '⏳ 이실장(aipartner) 로그인 및 내 매물 연동 중...';
+  btn.innerHTML = '⏳ 이실장 통신 및 매물 수집 중...';
 
   try {
     await saveRealtorSettings(true);
@@ -2309,11 +2337,18 @@ window.runAiPartnerLoginAndFetch = async function() {
     });
 
     const data = await res.json();
+    
+    // 실시간 서버 로그 콘솔에 표시
+    if (logContent && data.logs && data.logs.length > 0) {
+      logContent.textContent = data.logs.join('\n');
+      logContent.scrollTop = logContent.scrollHeight;
+    }
+
     await loadNaverListings();
     loadModalListingTable();
 
     if (data.success) {
-      showToastNotification('🎉 이실장 연동 성공', data.message || `[${memberId}] 계정으로 정상 연동되었습니다!`, '🟢');
+      showToastNotification('🎉 이실장 연동 성공', data.message, '🟢');
       if (data.successCount > 0) {
         if (confirm(`${data.message}\n\n지금 바로 공공 건축물대장 1초 전수 대조 검증을 실행하시겠습니까?`)) {
           closeNaverInspectModal();
@@ -2322,17 +2357,24 @@ window.runAiPartnerLoginAndFetch = async function() {
         }
       }
     } else {
-      alert('⚠️ ' + (data.message || '이실장 연동 중 문제가 발생했습니다.'));
+      if (logContent) {
+        logContent.textContent += `\n[${new Date().toLocaleTimeString()}] ⚠️ 결과 안내: ${data.message}`;
+        logContent.scrollTop = logContent.scrollHeight;
+      }
+      alert('⚠️ ' + (data.message || '이실장 연동 실패: 아래 실시간 로그 창의 오류 상세를 확인해주세요.'));
     }
 
     const btnAudit = document.getElementById('btn-modal-audit-all');
     if (btnAudit) btnAudit.style.display = 'inline-block';
   } catch (err) {
     console.error(err);
+    if (logContent) {
+      logContent.textContent += `\n[${new Date().toLocaleTimeString()}] ❌ 클라이언트 통신 오류: ${err.message}`;
+    }
     alert('이실장 연동 중 오류가 발생했습니다: ' + err.message);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '🚀 이실장 로그인 및 내 매물 목록 불러오기';
+    btn.innerHTML = '🚀 이실장 로그인 및 매물 수집 실행';
   }
 };
 

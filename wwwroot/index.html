@@ -960,18 +960,32 @@
               </div>
             </div>
 
+            <div style="background: rgba(15, 23, 42, 0.6); padding: 12px 14px; border-radius: 8px; border: 1px solid #1e293b; margin-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px;">
+                <span style="font-weight: 700; color: #f59e0b; font-size: 13px;">
+                  ⚡ 지금 열려있는 AI실장 화면(광고중 109건)에서 1초 만에 보내기
+                </span>
+                <button type="button" class="btn btn-sm" onclick="copyBookmarkletScript()" style="background: #d97706; color: #fff; font-weight: 700; padding: 5px 12px; font-size: 12px; border-radius: 4px; border: none; cursor: pointer;">
+                  📋 1초 전송 스크립트 복사
+                </button>
+              </div>
+              <div style="font-size: 12px; color: #94a3b8; line-height: 1.5;">
+                현재 띄워두신 크롬 브라우저의 AI실장 창에서 <b>F12(개발자도구)</b>를 누르고 <b>Console(콘솔)</b>에 복사한 스크립트를 붙여넣고 엔터 치시면, 현재 화면의 109개 매물이 온하우스로 즉시 전송됩니다!
+              </div>
+            </div>
+
             <div style="background: rgba(15, 23, 42, 0.6); padding: 10px 14px; border-radius: 6px; font-size: 12px; color: #94a3b8; line-height: 1.5;">
               💡 <b>기검수 매물 안전 보존:</b> 온하우스는 이미 대장 검수가 완료된 매물은 중복 조회하지 않고 자동으로 건너뛰어(Skip), 기존 검수 결과와 표제부 데이터를 안전하게 보호합니다.
             </div>
           </div>
 
           <!-- 접이식 보조 옵션: 이실장 일반 아이디/비밀번호 직접 입력 (선택) -->
-          <details style="background: #0b1320; border: 1px solid #1e293b; border-radius: 8px; padding: 12px 16px; margin-bottom: 18px;">
-            <summary style="font-size: 13px; font-weight: 700; color: #94a3b8; cursor: pointer; user-select: none;">
-              🔑 이실장 일반 아이디/비밀번호 직접 입력 (소셜 로그인이 아닌 일반 회원인 경우만 클릭)
+          <details open style="background: #0b1320; border: 1px solid #1e293b; border-radius: 8px; padding: 12px 16px; margin-bottom: 18px;">
+            <summary style="font-size: 13px; font-weight: 700; color: #94a3b8; cursor: pointer; user-select: none; margin-bottom: 8px;">
+              🔑 이실장 아이디/비밀번호 직접 로그인 (자동 수집)
             </summary>
-            <div style="margin-top: 12px; font-size: 12px; color: #64748b; line-height: 1.5;">
-              카카오/네이버 소셜 로그인이 아닌 이실장 자체 아이디와 비밀번호를 보유하신 중개사님만 입력하세요. 계정 정보는 내 PC 로컬 DB에만 암호화 저장됩니다.
+            <div style="margin-top: 6px; font-size: 12px; color: #64748b; line-height: 1.5;">
+              이실장 계정 정보를 입력하시면 백엔드가 직접 로그인하여 매물을 수집합니다. 모든 통신 과정과 결과는 아래 실시간 로그 창에 투명하게 출력됩니다.
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; margin-bottom: 14px;">
@@ -999,13 +1013,24 @@
               </div>
             </div>
 
-            <div style="display: flex; gap: 10px;">
+            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
               <button type="button" id="btn-save-naver-account" class="btn btn-secondary btn-sm" onclick="saveRealtorSettings()" style="padding: 10px 16px; font-weight: 700; font-size: 12px;">
                 💾 계정 정보 로컬 저장
               </button>
               <button type="button" id="btn-do-naver-login" class="btn btn-primary btn-sm" onclick="runAiPartnerLoginAndFetch()" style="flex: 1; background: #03c75a; border-color: #03c75a; font-weight: 700; padding: 10px; font-size: 13px;">
-                🚀 일반 아이디로 매물 수집 시도
+                🚀 이실장 로그인 및 매물 수집 실행
               </button>
+            </div>
+
+            <!-- 실시간 연동 및 오류 로그 터미널 창 -->
+            <div id="aipartner-log-container" style="display: none; background: #050a14; border: 1px solid #334155; border-radius: 8px; padding: 12px 14px; font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; max-height: 220px; overflow-y: auto;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #1e293b; padding-bottom: 6px;">
+                <span style="font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
+                  📡 실시간 이실장 통신 & 오류 로그 콘솔
+                </span>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="copyAiPartnerLogs()" style="font-size: 11px; padding: 3px 8px; background: #1e293b; color: #cbd5e1; border-radius: 4px; border: 1px solid #334155;">📋 로그 복사</button>
+              </div>
+              <div id="aipartner-log-content" style="white-space: pre-wrap; line-height: 1.6; color: #cbd5e1;"></div>
             </div>
           </details>
 
