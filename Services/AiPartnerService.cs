@@ -145,22 +145,48 @@ namespace OnHouseLocal.Services
                         
                         string[] candidateUrls = new[]
                         {
+                            "https://www.aipartner.com/api/web/offerings/adList",
+                            "https://www.aipartner.com/api/web/offerings/adList?page=1&size=200",
+                            "https://www.aipartner.com/api/web/offerings/adList?page=1&limit=200",
+                            "https://www.aipartner.com/api/web/offerings/adList?page=1&pageSize=200",
+                            "https://www.aipartner.com/api/web/offerings/adList?page=1&rowNum=200",
+                            "https://www.aipartner.com/api/web/offerings/simpleList",
+                            "https://www.aipartner.com/api/web/offerings/simpleList?page=1&limit=200",
+                            "https://www.aipartner.com/api/web/offerings/adFailList",
+                            "https://www.aipartner.com/api/web/offerings/adCmplList",
                             "https://www.aipartner.com/offerings/adlist",
                             "https://www.aipartner.com/offerings/admanage",
-                            "https://www.aipartner.com/home"
+                            "https://www.aipartner.com/home",
+                            "https://www.aipartner.plus/api/web/offerings/adList"
                         };
 
                         foreach (var url in candidateUrls)
                         {
-                            Log($"매물 페이지 스캔: {url}");
+                            Log($"매물 데이터 수집 요청: {url}");
                             try
                             {
-                                var adRes = await client.GetAsync(url);
+                                using var pageReq = new HttpRequestMessage(HttpMethod.Get, url);
+                                pageReq.Headers.Add("Accept", "application/json, text/plain, */*");
+                                pageReq.Headers.Add("X-Requested-With", "XMLHttpRequest");
+                                pageReq.Headers.Add("Referer", "https://www.aipartner.com/home");
+                                pageReq.Headers.Add("Origin", "https://www.aipartner.com");
+
+                                var adRes = await client.SendAsync(pageReq);
+                                Log($"응답: HTTP {(int)adRes.StatusCode}");
+
                                 if (adRes.IsSuccessStatusCode)
                                 {
                                     string adHtml = await adRes.Content.ReadAsStringAsync();
-                                    var matches = Regex.Matches(adHtml, @"(?:articleNo|articleNumber|articles|info|offerings)[/=:""'\s]+([0-9]{9,11})");
                                     int beforeCount = targetArticleNumbers.Count;
+
+                                    // 1. 네이버 & 국토부 매물번호 9~11자리 추출
+                                    foreach (var extractedNo in naverService.ExtractMultipleArticleNumbers(adHtml))
+                                    {
+                                        targetArticleNumbers.Add(extractedNo);
+                                    }
+
+                                    // 2. 정규식 보강 추출 (articleNo, atclNo, offeringSeq 등)
+                                    var matches = Regex.Matches(adHtml, @"(?:articleNo|articleNumber|atclNo|naverArticleNo|cpArticleNo|articles|info|offerings|itemNo|article_no)[/=:\s""']+([0-9]{9,11})");
                                     foreach (Match match in matches)
                                     {
                                         if (match.Groups.Count > 1 && !string.IsNullOrEmpty(match.Groups[1].Value))
@@ -168,11 +194,48 @@ namespace OnHouseLocal.Services
                                             targetArticleNumbers.Add(match.Groups[1].Value);
                                         }
                                     }
+
                                     int newlyFound = targetArticleNumbers.Count - beforeCount;
                                     if (newlyFound > 0)
                                     {
-                                        Log($"✨ {url} 에서 매물번호 {newlyFound}건 발견 (총 {targetArticleNumbers.Count}건)");
+                                        Log($"✨ 매물번호 {newlyFound}건 발견 (누적 총 {targetArticleNumbers.Count}건)");
                                     }
+
+                                    // 3. 만약 JSON에 pagination이 있다면 2~5페이지도 추가 조회
+                                    try
+                                    {
+                                        using var doc = JsonDocument.Parse(adHtml);
+                                        if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                                        {
+                                            // 추가 페이지 자동 탐색
+                                            for (int page = 2; page <= 6; page++)
+                                            {
+                                                string pagedUrl = url.Contains("?") 
+                                                    ? Regex.Replace(url, @"page=\d+", $"page={page}") 
+                                                    : $"{url}?page={page}&size=200";
+                                                
+                                                if (pagedUrl == url) break;
+
+                                                using var nextReq = new HttpRequestMessage(HttpMethod.Get, pagedUrl);
+                                                nextReq.Headers.Add("Accept", "application/json, text/plain, */*");
+                                                nextReq.Headers.Add("X-Requested-With", "XMLHttpRequest");
+                                                var nextRes = await client.SendAsync(nextReq);
+                                                if (nextRes.IsSuccessStatusCode)
+                                                {
+                                                    string nextHtml = await nextRes.Content.ReadAsStringAsync();
+                                                    int pBefore = targetArticleNumbers.Count;
+                                                    foreach (var extractedNo in naverService.ExtractMultipleArticleNumbers(nextHtml))
+                                                    {
+                                                        targetArticleNumbers.Add(extractedNo);
+                                                    }
+                                                    int pFound = targetArticleNumbers.Count - pBefore;
+                                                    if (pFound == 0) break; // 더 이상 없으면 중단
+                                                    Log($"📄 {page}페이지에서 매물 {pFound}건 추가 수집 (누적 {targetArticleNumbers.Count}건)");
+                                                }
+                                            }
+                                        }
+                                    }
+                                    catch { }
                                 }
                             }
                             catch (Exception crawlEx)
@@ -186,7 +249,7 @@ namespace OnHouseLocal.Services
                         Log($"❌ 이실장 로그인 실패 응답: {serverMsg}");
                         if (!isPhone)
                         {
-                            Log("ℹ️ 원인 분석: 이실장은 영문 아이디에 대해 보안 모듈(IssacWeb 암호화) 또는 브라우저 인증을 필수로 요구합니다.");
+                            Log("ℹ️ 원인 분석: 이실장 일반 아이디는 브라우저 보안 모듈이 적용되어 있습니다. 대표님의 휴대폰 번호(010...)로 로그인하시면 즉시 연동됩니다.");
                         }
                     }
                 }
@@ -205,9 +268,9 @@ namespace OnHouseLocal.Services
             {
                 Log("⚠️ 수집된 매물 번호가 0건입니다.");
                 return (false, 
-                    $"이실장에서 매물을 자동 수집하지 못했습니다.\n\n" +
-                    "💡 지금 바로 매물을 가져오는 가장 확실한 방법:\n" +
-                    "대표님 브라우저에 띄워두신 AI실장 화면(광고중 109건)에서 매물 목록을 복사(Ctrl+C)하시거나, [⭐ 1초 전송 북마클릿]을 누르시면 온하우스로 109건이 1초 만에 전송됩니다!",
+                    $"이실장에서 매물 목록을 가져오지 못했습니다.\n\n" +
+                    "아이디(휴대폰 번호)와 비밀번호가 맞는지 확인해 주세요.\n" +
+                    "또는 현재 크롬에서 보고 계신 이실장 화면의 주소(URL)를 입력창에 넣으시면 109건 전체를 즉시 긁어옵니다!",
                     0, 0, 0, 0, new List<string>(), logs);
             }
 
