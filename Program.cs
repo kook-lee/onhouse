@@ -578,6 +578,80 @@ try
         });
     });
 
+    // 3-2. URL 또는 텍스트에서 매물 긁어와 SQLite 자동 저장
+    app.MapPost("/api/naver/listings/scrape-url", async (ScrapeUrlRequest req, NaverLandService naverService, DatabaseService db) =>
+    {
+        int uId = req.UserId ?? 1;
+        string input = (req.Url ?? "").Trim();
+        if (string.IsNullOrEmpty(input))
+        {
+            return Results.BadRequest(new { success = false, message = "URL 또는 매물 링크를 입력해주세요." });
+        }
+
+        var targetNumbers = new HashSet<string>();
+
+        // 1. 입력 문자열 자체에서 매물번호 추출
+        foreach (var n in naverService.ExtractMultipleArticleNumbers(input))
+        {
+            targetNumbers.Add(n);
+        }
+
+        // 2. 만약 http(s) URL인 경우, 해당 웹페이지를 실제로 크롤링하여 내부 매물 번호 전부 긁어오기
+        if (input.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || input.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                using var handler = new HttpClientHandler { AllowAutoRedirect = true };
+                using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
+                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+                client.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+                client.DefaultRequestHeaders.Add("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8");
+
+                var res = await client.GetAsync(input);
+                if (res.IsSuccessStatusCode)
+                {
+                    string html = await res.Content.ReadAsStringAsync();
+                    foreach (var n in naverService.ExtractMultipleArticleNumbers(html))
+                    {
+                        targetNumbers.Add(n);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ScrapeUrl] 크롤링 경고: {ex.Message}");
+            }
+        }
+
+        if (targetNumbers.Count == 0)
+        {
+            return Results.BadRequest(new { 
+                success = false, 
+                message = "입력하신 URL 또는 텍스트에서 매물 번호를 찾지 못했습니다. 매물 상세 페이지 URL이나 10자리 매물번호를 입력해주세요." 
+            });
+        }
+
+        // 3. 네이버 & 건축물대장 서비스에 매물 등록 및 SQLite 영구 저장
+        var (successCount, failedCount, skippedCount, errors) = 
+            await naverService.RegisterMultipleArticlesAsync(targetNumbers.ToList(), uId, db, skipAlreadyAudited: true);
+
+        var currentList = await db.GetNaverListingsAsync(uId);
+        string msg = skippedCount > 0
+            ? $"총 {targetNumbers.Count}건 긁어와 SQLite 저장 완료! (신규 {successCount}건, 기검수 보존 {skippedCount}건)"
+            : $"총 {targetNumbers.Count}건 매물을 성공적으로 긁어와 SQLite에 저장했습니다!";
+
+        return Results.Ok(new
+        {
+            success = true,
+            totalFound = targetNumbers.Count,
+            successCount,
+            skippedCount,
+            failedCount,
+            message = msg,
+            listings = currentList
+        });
+    });
+
     // 4. 단일 매물 대장 검증 실행
     app.MapPost("/api/naver/listings/audit/{id:int}", async (int id, NaverLandService naverService, BuildingLedgerService ledgerService, DatabaseService db) =>
     {
@@ -878,6 +952,7 @@ public record CrawlerRunRequest(bool Reset = false);
 public record NaverInspectRequest(string Url);
 public record NaverBulkRegisterRequest(string? Text, List<string>? ArticleNumbers, int? UserId, bool? SkipAlreadyAudited = true);
 public record AiPartnerLoginRequest(string Id, string Password, string? AgencyName, string? RealtorInput, int? UserId);
+public record ScrapeUrlRequest(string? Url, int? UserId);
 public class StatusUpdateRequest
 {
     [System.Text.Json.Serialization.JsonPropertyName("status")]

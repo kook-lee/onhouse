@@ -2270,6 +2270,51 @@ window.importFromClipboardAndAudit = async function() {
   }
 };
 
+// URL 또는 링크에서 1초 만에 매물 긁어와 SQLite 저장
+window.runDirectUrlScrape = async function(inputId = 'direct-scrape-url') {
+  const inputEl = document.getElementById(inputId);
+  const val = inputEl ? inputEl.value.trim() : '';
+
+  if (!val) {
+    alert('이실장 또는 네이버 매물 주소(URL)를 입력해주세요.');
+    if (inputEl) inputEl.focus();
+    return;
+  }
+
+  showToastNotification('⏳ 매물 긁어오는 중', '웹페이지에서 매물 정보를 긁어와 SQLite DB에 저장하는 중입니다...', '🔗');
+
+  try {
+    const res = await fetch('/api/naver/listings/scrape-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: val,
+        userId: currentUser ? currentUser.id : 1
+      })
+    });
+
+    const data = await res.json();
+    if (inputEl) inputEl.value = '';
+
+    if (data.success) {
+      closeNaverInspectModal();
+      switchMainView('naver'); // [내 매물보기]로 즉시 전환
+      await loadNaverListings();
+      
+      showToastNotification('🎉 SQLite 저장 완료', data.message, '🟢');
+      
+      if (confirm(`${data.message}\n\n[내 매물보기]에 저장되었습니다! 지금 바로 공공 건축물대장 1초 전수 대조를 실행하시겠습니까?`)) {
+        runAuditAllListings();
+      }
+    } else {
+      alert('⚠️ ' + (data.message || '매물을 긁어오지 못했습니다.'));
+    }
+  } catch (err) {
+    console.error('runDirectUrlScrape error:', err);
+    alert('매물 긁어오기 중 오류가 발생했습니다: ' + err.message);
+  }
+};
+
 // 클립보드에 이실장 1초 전송 스크립트 복사
 window.copyBookmarkletScript = function() {
   const script = "(function(){const m=document.body.innerText.match(/\\b\\d{9,11}\\b/g)||[];const u=[...new Set(m)];if(!u.length){alert('화면에서 매물번호를 찾지 못했습니다.');return;}fetch('http://localhost:5000/api/naver/listings/register-bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({articleNumbers:u,userId:1})}).then(r=>r.json()).then(d=>alert('🎉 온하우스로 '+u.length+'건 매물 전송 완료! 온하우스 창을 확인하세요.')).catch(e=>alert('온하우스 전송 실패: '+e));})();";

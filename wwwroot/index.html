@@ -120,10 +120,13 @@
             🤖 이실장(AI실장+) 로그인/연동
           </button>
         </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <button type="button" class="btn btn-primary btn-sm" onclick="openNaverBulkModal()" style="background: #03c75a; border-color: #03c75a; font-weight: 700; font-size: 12px; padding: 6px 14px;">
-            ➕ 이실장 매물 일괄 등록 (엑셀/붙여넣기)
+        <div style="display: flex; align-items: center; gap: 6px; flex: 1; max-width: 460px;">
+          <input type="text" id="subbar-scrape-url" class="input-text" style="padding: 6px 10px; font-size: 12px; height: 32px; background: #070d19; border: 1px solid #334155; border-radius: 4px; color: #fff; width: 100%;" placeholder="🔗 URL 붙여넣기 (이실장/네이버 주소)">
+          <button type="button" class="btn btn-primary btn-sm" onclick="runDirectUrlScrape('subbar-scrape-url')" style="background: #03c75a; border-color: #03c75a; font-weight: 700; white-space: nowrap; height: 32px; padding: 0 12px; font-size: 12px;">
+            🚀 긁어와 저장
           </button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
           <button type="button" class="btn btn-accent btn-sm" onclick="runAuditAllListings()" id="btn-audit-all" style="font-weight: 700; font-size: 12px; padding: 6px 14px; background: #3b82f6; border-color: #3b82f6;">
             ⚡ 미검증 대장 전수 검증
           </button>
@@ -927,6 +930,23 @@
             <div style="color: #cbd5e1; font-size: 13px; line-height: 1.6; margin-bottom: 16px;">
               🔒 <b>가짜 아이디를 만드는 것이 절대 아닙니다!</b><br>
               이실장(aipartner.plus)은 카카오톡 / 네이버 간편 로그인 및 휴대폰 본인인증을 사용하므로, <b>대표님께서 평소 쓰시던 브라우저에서 이실장에 직접 로그인</b>하신 후 매물을 온하우스로 가져오시면 1초 만에 건축물대장과 전수 대조합니다.
+            </div>
+
+            <!-- URL 1초 긁어와 SQLite 저장 박스 -->
+            <div style="background: #0b1320; border: 2px solid #03c75a; border-radius: 8px; padding: 16px 18px; margin-bottom: 16px;">
+              <div style="font-weight: 800; color: #6ee7b7; font-size: 14px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                <span>🔗</span> 브라우저 주소(URL)만 넣으면 1초 만에 긁어와 SQLite 저장!
+              </div>
+              <div style="font-size: 12px; color: #94a3b8; line-height: 1.5; margin-bottom: 10px;">
+                현재 보고 계신 크롬 브라우저의 <b>주소창 URL</b>(이실장 주소 또는 네이버 부동산 중개업소 주소)을 복사해서 붙여넣으세요.<br>
+                온하우스가 웹페이지에서 매물들을 싹 긁어와 내 PC <b>SQLite DB에 저장</b>하고 <b>[내 매물보기]</b>에 즉시 띄웁니다.
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <input type="text" id="direct-scrape-url" class="input-text" style="flex: 1; padding: 11px 14px; font-size: 13px; background: #070d19; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="웹페이지 주소(URL) 붙여넣기 (예: https://www.aipartner.com/... 또는 네이버 매물 링크)">
+                <button type="button" class="btn btn-primary" onclick="runDirectUrlScrape('direct-scrape-url')" style="background: #03c75a; border-color: #03c75a; font-weight: 800; padding: 0 20px; white-space: nowrap; font-size: 13px;">
+                  🚀 긁어와 SQLite 저장
+                </button>
+              </div>
             </div>
 
             <!-- 2단계 원터치 작업 카드 -->
