@@ -2239,61 +2239,73 @@ window.saveRealtorSettings = async function(silent = false) {
   return false;
 };
 
-// 네이버 로그인 및 내 매물 목록 불러오기
-window.runNaverLoginAndFetch = async function() {
+// 이실장(AI실장 / aipartner.plus) 로그인 및 내 매물 목록 불러오기
+window.runAiPartnerLoginAndFetch = async function() {
   const idEl = document.getElementById('naver-login-id');
   const pwEl = document.getElementById('naver-login-pw');
+  const agencyEl = document.getElementById('naver-login-agency');
   const realtorIdEl = document.getElementById('naver-login-realtor-id');
   const btn = document.getElementById('btn-do-naver-login');
 
-  const naverId = idEl ? idEl.value.trim() : '';
-  const naverPassword = pwEl ? pwEl.value.trim() : '';
+  const memberId = idEl ? idEl.value.trim() : '';
+  const memberPw = pwEl ? pwEl.value.trim() : '';
+  const agencyName = agencyEl ? agencyEl.value.trim() : '';
   const realtorInput = realtorIdEl ? realtorIdEl.value.trim() : '';
 
-  if (!naverId || !naverPassword) {
-    alert('네이버 아이디와 비밀번호를 모두 입력해주세요.');
-    if (!naverId && idEl) idEl.focus();
-    else if (!naverPassword && pwEl) pwEl.focus();
+  if (!memberId || !memberPw) {
+    alert('이실장(AI실장) 아이디(또는 휴대폰 번호)와 비밀번호를 모두 입력해주세요.');
+    if (!memberId && idEl) idEl.focus();
+    else if (!memberPw && pwEl) pwEl.focus();
     return;
   }
 
   btn.disabled = true;
-  btn.innerHTML = '⏳ 로그인 및 내 매물 연동 중...';
+  btn.innerHTML = '⏳ 이실장(aipartner) 로그인 및 내 매물 연동 중...';
 
   try {
     await saveRealtorSettings(true);
 
-    if (realtorInput) {
-      const bRes = await fetch('/api/naver/listings/register-bulk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: realtorInput,
-          userId: currentUser ? currentUser.id : 1,
-          skipAlreadyAudited: true
-        })
-      });
-      const bData = await bRes.json();
-      if (bData && bData.message) {
-        showToastNotification('📋 매물 연동 결과', bData.message, 'ℹ️');
-      }
-    }
+    const res = await fetch('/api/aipartner/login-and-fetch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: memberId,
+        password: memberPw,
+        agencyName,
+        realtorInput,
+        userId: currentUser ? currentUser.id : 1
+      })
+    });
 
+    const data = await res.json();
     await loadNaverListings();
     loadModalListingTable();
 
-    showToastNotification('🎉 네이버 연동 완료', `[${naverId}] 계정으로 정상 연동되었습니다!`, '🟢');
+    if (data.success) {
+      showToastNotification('🎉 이실장 연동 성공', data.message || `[${memberId}] 계정으로 정상 연동되었습니다!`, '🟢');
+      if (data.successCount > 0) {
+        if (confirm(`${data.message}\n\n지금 바로 공공 건축물대장 1초 전수 대조 검증을 실행하시겠습니까?`)) {
+          closeNaverInspectModal();
+          switchMainView('naver');
+          runAuditAllListings();
+        }
+      }
+    } else {
+      alert('⚠️ ' + (data.message || '이실장 연동 중 문제가 발생했습니다.'));
+    }
 
     const btnAudit = document.getElementById('btn-modal-audit-all');
     if (btnAudit) btnAudit.style.display = 'inline-block';
   } catch (err) {
     console.error(err);
-    alert('네이버 연동 중 오류가 발생했습니다: ' + err.message);
+    alert('이실장 연동 중 오류가 발생했습니다: ' + err.message);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '🚀 네이버 로그인 및 내 매물 목록 불러오기';
+    btn.innerHTML = '🚀 이실장 로그인 및 내 매물 목록 불러오기';
   }
 };
+
+window.runNaverLoginAndFetch = window.runAiPartnerLoginAndFetch;
 
 // 매물 일괄 등록 (붙여넣기) 실행
 window.runNaverBulkRegister = async function() {
@@ -2476,16 +2488,16 @@ window.renderNaverList = function(list) {
     container.innerHTML = `
       <div style="padding: 40px 20px; text-align: center; color: #94a3b8; background: #0f172a; border-radius: 8px; border: 1px dashed #334155; margin-top: 10px;">
         <div style="font-size: 36px; margin-bottom: 12px;">🏢</div>
-        <div style="font-size: 15px; font-weight: 700; color: #f8fafc; margin-bottom: 6px;">등록된 네이버 매물이 없습니다</div>
+        <div style="font-size: 15px; font-weight: 700; color: #f8fafc; margin-bottom: 6px;">등록된 이실장(AI실장+) 매물이 없습니다</div>
         <div style="font-size: 13px; color: #64748b; margin-bottom: 16px;">
-          네이버 공인중개사 아이디로 로그인하시거나, 올리신 매물 URL 링크들을 복사하여 붙여넣으세요.
+          이실장(aipartner.plus) 계정으로 로그인하시거나, 올리신 매물 번호/링크들을 복사하여 붙여넣으세요.
         </div>
         <div style="display: flex; justify-content: center; gap: 10px;">
           <button type="button" class="btn btn-primary" onclick="openNaverInspectModal('login')" style="background: #03c75a; border-color: #03c75a; font-weight: 700; font-size: 13px; padding: 10px 18px;">
-            🔐 네이버 로그인 및 계정 연동
+            🤖 이실장(AI실장+) 로그인 및 계정 연동
           </button>
           <button type="button" class="btn btn-secondary" onclick="openNaverInspectModal('bulk')" style="font-size: 13px; padding: 10px 18px;">
-            ➕ 매물 링크 일괄 붙여넣기
+            ➕ 이실장 매물 일괄 붙여넣기
           </button>
         </div>
       </div>

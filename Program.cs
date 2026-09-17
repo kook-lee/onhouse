@@ -156,6 +156,7 @@ try
     builder.Services.AddSingleton<FakeListingDetector>();
     builder.Services.AddSingleton<BuildingLedgerService>();
     builder.Services.AddSingleton<NaverLandService>();
+    builder.Services.AddSingleton<AiPartnerService>();
 
     var app = builder.Build();
 
@@ -662,6 +663,32 @@ try
         return Results.Ok(new { success = true, message = "중개업소 연동 정보가 안전하게 저장되었습니다!" });
     });
 
+    // 10. 이실장(AI실장 / aipartner.plus) 로그인 및 매물 자동 연동 API
+    app.MapPost("/api/aipartner/login-and-fetch", async (AiPartnerLoginRequest req, AiPartnerService aiPartnerService, NaverLandService naverService, DatabaseService db) =>
+    {
+        int uId = req.UserId ?? 1;
+        if (string.IsNullOrWhiteSpace(req.Id) || string.IsNullOrWhiteSpace(req.Password))
+        {
+            return Results.BadRequest(new { success = false, message = "이실장 아이디(휴대폰 번호)와 비밀번호를 모두 입력해주세요." });
+        }
+
+        var (success, message, extractedCount, successCount, skippedCount, failedCount, errors) =
+            await aiPartnerService.LoginAndFetchListingsAsync(req.Id.Trim(), req.Password.Trim(), req.AgencyName, req.RealtorInput, uId, db, naverService);
+
+        var currentList = await db.GetNaverListingsAsync(uId);
+        return Results.Ok(new
+        {
+            success,
+            message,
+            extractedCount,
+            successCount,
+            skippedCount,
+            failedCount,
+            errors,
+            listings = currentList
+        });
+    });
+
     // 정적 파일 및 SPA Fallback (index.html 항상 서빙)
     app.MapFallbackToFile("index.html");
 
@@ -770,6 +797,7 @@ public record BulkImportRequest(List<int> Ids, int UserId);
 public record CrawlerRunRequest(bool Reset = false);
 public record NaverInspectRequest(string Url);
 public record NaverBulkRegisterRequest(string? Text, List<string>? ArticleNumbers, int? UserId, bool? SkipAlreadyAudited = true);
+public record AiPartnerLoginRequest(string Id, string Password, string? AgencyName, string? RealtorInput, int? UserId);
 public class StatusUpdateRequest
 {
     [System.Text.Json.Serialization.JsonPropertyName("status")]

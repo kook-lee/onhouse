@@ -35,8 +35,8 @@
           <span class="nav-count nav-count-accent" id="stat-danggeun">0</span>
         </button>
         <button id="nav-tab-naver" class="nav-tab" onclick="switchMainView('naver')">
-          <span class="nav-icon" style="color: #03c75a;">🟢</span>
-          <span class="nav-label">네이버 대장 검증</span>
+          <span class="nav-icon" style="color: #03c75a;">🤖</span>
+          <span class="nav-label">이실장·네이버 대장 검증</span>
           <span class="nav-count" id="stat-naver-count" style="background: rgba(3, 199, 90, 0.2); color: #03c75a;">0</span>
         </button>
         <button id="nav-tab-customers" class="nav-tab" onclick="openCustomerModal()">
@@ -49,7 +49,7 @@
       <!-- Right Header Actions & User Profile -->
       <div class="header-right">
         <button id="btn-naver-inspect" class="btn btn-outline" onclick="openNaverInspectModal('login')" style="border-color: #03c75a; color: #03c75a; font-weight: 800; background: rgba(3, 199, 90, 0.12); display: flex; align-items: center; gap: 6px; padding: 7px 14px; box-shadow: 0 0 10px rgba(3, 199, 90, 0.2);">
-          <span>🔐</span> 네이버 로그인 & 대장 검증
+          <span>🤖</span> 이실장(AI실장+) 로그인 & 매물 검증
         </button>
         <button id="btn-add-property" class="btn btn-primary btn-add-prop">
           <span>➕</span> 신규 매물 등록
@@ -109,23 +109,23 @@
         </div>
       </div>
 
-      <!-- (C) 네이버 대장 검증 모드일 때의 서브바 -->
+      <!-- (C) 이실장/네이버 대장 검증 모드일 때의 서브바 -->
       <div id="sub-bar-naver" class="sub-bar-content" style="display: none; align-items: center; justify-content: space-between; width: 100%; gap: 10px;">
         <div style="display: flex; align-items: center; gap: 10px;">
           <span class="stat-pill" style="border-color: #03c75a; background: rgba(3, 199, 90, 0.08); padding: 4px 10px;">
             <span class="pill-dot" style="background: #03c75a;"></span>
-            🏢 연동 업소: <strong id="sub-naver-agency" style="color: #03c75a; margin-left: 4px;">미연동</strong>
+            🏢 이실장 연동 계정: <strong id="sub-naver-agency" style="color: #03c75a; margin-left: 4px;">미연동 (클릭하여 이실장 로그인)</strong>
           </span>
           <button type="button" class="btn btn-outline btn-sm" onclick="openRealtorSettingsModal()" style="border-color: #03c75a; color: #03c75a; font-size: 11px; padding: 4px 10px; font-weight: 700;">
-            🔐 네이버 로그인/중개사 연동
+            🤖 이실장(AI실장+) 로그인/연동
           </button>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <button type="button" class="btn btn-primary btn-sm" onclick="openNaverBulkModal()" style="background: #03c75a; border-color: #03c75a; font-weight: 700; font-size: 12px; padding: 6px 14px;">
-            ➕ 매물 일괄 등록 (붙여넣기)
+            ➕ 이실장 매물 일괄 등록 (엑셀/붙여넣기)
           </button>
           <button type="button" class="btn btn-accent btn-sm" onclick="runAuditAllListings()" id="btn-audit-all" style="font-weight: 700; font-size: 12px; padding: 6px 14px; background: #3b82f6; border-color: #3b82f6;">
-            ⚡ 미검증 대장 일괄 검증
+            ⚡ 미검증 대장 전수 검증
           </button>
           <button type="button" class="btn btn-secondary btn-sm" onclick="importSelectedNaverListings()" style="font-size: 12px; padding: 6px 12px;">
             📥 선택 매물 내 장부로 저장
@@ -887,49 +887,49 @@
     </div>
   </div>
 
-  <!-- 7. 네이버 매물 URL 검증 & 건축물대장 대조 모달 -->
+  <!-- 7. 이실장(AI실장+) 매물 연동 & 건축물대장 대조 모달 -->
   <div id="naver-inspect-modal" class="modal-overlay" style="display: none; z-index: 9998;">
-    <div class="modal-card" style="max-width: 820px; max-height: 90vh; display: flex; flex-direction: column;">
+    <div class="modal-card" style="max-width: 840px; max-height: 90vh; display: flex; flex-direction: column;">
       <div class="modal-header" style="background: #022c16; border-bottom: 1px solid #065f46;">
         <h3 style="color: #6ee7b7; display: flex; align-items: center; gap: 8px; margin: 0; font-size: 17px; font-weight: 700;">
-          <span style="background: #03c75a; color: #fff; font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 800;">NAVER</span>
-          네이버 매물 URL 검증 & 건축물대장 대조 분석
+          <span style="background: #03c75a; color: #fff; font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 800;">이실장+</span>
+          이실장(aipartner.plus) 매물 연동 & 건축물대장 1초 전수 대조 분석
         </h3>
         <button id="btn-naver-modal-close" class="btn-close" onclick="closeNaverInspectModal()">&times;</button>
       </div>
       <div class="modal-body" style="padding: 20px; overflow-y: auto;">
-        <!-- 상단 탭 선택: 네이버 로그인 연동 vs 매물 일괄 등록 vs 단일 URL 검증 -->
+        <!-- 상단 탭 선택: 이실장 로그인 연동 vs 매물 일괄 등록 vs 단일 URL 검증 -->
         <div style="display: flex; gap: 8px; border-bottom: 1px solid #334155; margin-bottom: 16px; padding-bottom: 8px;">
           <button type="button" id="tab-naver-mode-login" class="btn btn-sm active" onclick="switchNaverModalTab('login')" style="background: #03c75a; color: #fff; font-weight: 700; border-radius: 6px; padding: 8px 16px;">
-            🔐 네이버 로그인 (내 계정 연동)
+            🤖 이실장(AI실장+) 로그인 (내 매물 연동)
           </button>
           <button type="button" id="tab-naver-mode-bulk" class="btn btn-sm btn-secondary" onclick="switchNaverModalTab('bulk')" style="background: #1e293b; color: #94a3b8; font-weight: 700; border-radius: 6px; padding: 8px 16px;">
-            ➕ 매물 일괄 등록 (여러 링크/번호 붙여넣기)
+            ➕ 매물 일괄 등록 (엑셀 / 링크 / 번호 붙여넣기)
           </button>
           <button type="button" id="tab-naver-mode-url" class="btn btn-sm btn-secondary" onclick="switchNaverModalTab('url')" style="background: #1e293b; color: #94a3b8; font-weight: 700; border-radius: 6px; padding: 8px 16px;">
             🔍 단일 매물 1:1 대장 대조
           </button>
         </div>
 
-        <!-- 탭 1: 네이버 아이디 & 비밀번호 로그인 및 내 매물 연동 영역 -->
+        <!-- 탭 1: 이실장(AI실장+) 로그인 및 내 매물 연동 영역 -->
         <div id="naver-tab-content-login" style="display: block;">
           <div style="background: #0f172a; padding: 14px 16px; border-radius: 8px; border: 1px solid #03c75a; margin-bottom: 16px; font-size: 13px; color: #cbd5e1; line-height: 1.6;">
             <div style="font-weight: 700; color: #6ee7b7; font-size: 14px; margin-bottom: 4px;">
-              🔐 네이버 공인중개사 계정 정보 입력
+              🤖 이실장(AI실장+, aipartner.plus) 공인중개사 계정 정보 입력
             </div>
-            아이디와 비밀번호를 저장해두시면, 네이버 부동산에 등록된 <b>내 매물 목록을 불러와 건축물대장과 1초 만에 전수 교차 검증</b>할 수 있습니다.<br>
-            <span style="font-size: 11px; color: #94a3b8;">🔒 입력하신 네이버 계정 정보는 외부 전송 없이 내 PC의 <b>로컬 암호화 SQLite</b>에만 안전하게 저장됩니다.</span>
+            이실장(aipartner.plus)에 등록하여 <b>네이버 부동산으로 전송한 내 매물 목록을 불러와 건축물대장과 1초 만에 전수 교차 검증</b>합니다.<br>
+            <span style="font-size: 11px; color: #94a3b8;">🔒 입력하신 이실장 계정 정보는 외부 전송 없이 내 PC의 <b>로컬 암호화 SQLite</b>에만 안전하게 저장됩니다.</span>
           </div>
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
             <div>
-              <label for="naver-login-id" style="font-size: 13px; font-weight: 700; color: #6ee7b7; display: block; margin-bottom: 6px;">🆔 네이버 아이디 *</label>
-              <input type="text" id="naver-login-id" class="input-text" style="width: 100%; padding: 11px 14px; font-size: 14px; background: #0b1320; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="예: naver_realtor_id">
+              <label for="naver-login-id" style="font-size: 13px; font-weight: 700; color: #6ee7b7; display: block; margin-bottom: 6px;">🆔 이실장 아이디 / 휴대폰 번호 *</label>
+              <input type="text" id="naver-login-id" class="input-text" style="width: 100%; padding: 11px 14px; font-size: 14px; background: #0b1320; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="예: 01012345678 또는 이실장 아이디">
             </div>
             <div>
-              <label for="naver-login-pw" style="font-size: 13px; font-weight: 700; color: #6ee7b7; display: block; margin-bottom: 6px;">🔑 네이버 비밀번호 *</label>
+              <label for="naver-login-pw" style="font-size: 13px; font-weight: 700; color: #6ee7b7; display: block; margin-bottom: 6px;">🔑 이실장 비밀번호 *</label>
               <div style="position: relative;">
-                <input type="password" id="naver-login-pw" class="input-text" style="width: 100%; padding: 11px 14px; font-size: 14px; background: #0b1320; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="네이버 비밀번호 입력">
+                <input type="password" id="naver-login-pw" class="input-text" style="width: 100%; padding: 11px 14px; font-size: 14px; background: #0b1320; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="이실장 비밀번호 입력">
                 <button type="button" onclick="togglePasswordVisibility('naver-login-pw', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 14px;">👁️</button>
               </div>
             </div>
@@ -941,8 +941,8 @@
               <input type="text" id="naver-login-agency" class="input-text" style="width: 100%; padding: 10px 12px; font-size: 13px; background: #0b1320; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="예: 온하우스공인중개사사무소">
             </div>
             <div>
-              <label for="naver-login-realtor-id" style="font-size: 12px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">🔗 중개사 회원번호 또는 매물 링크 (선택)</label>
-              <input type="text" id="naver-login-realtor-id" class="input-text" style="width: 100%; padding: 10px 12px; font-size: 13px; background: #0b1320; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="중개사 ID 또는 올리신 매물 링크 아무거나">
+              <label for="naver-login-realtor-id" style="font-size: 12px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">🔗 매물 관리 링크 또는 매물 번호 (선택)</label>
+              <input type="text" id="naver-login-realtor-id" class="input-text" style="width: 100%; padding: 10px 12px; font-size: 13px; background: #0b1320; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="이실장 매물 링크 또는 매물 번호">
             </div>
           </div>
 
@@ -950,8 +950,8 @@
             <button type="button" id="btn-save-naver-account" class="btn btn-secondary" onclick="saveRealtorSettings()" style="padding: 12px 18px; font-weight: 700; font-size: 13px;">
               💾 계정 정보 로컬 저장
             </button>
-            <button type="button" id="btn-do-naver-login" class="btn btn-primary" onclick="runNaverLoginAndFetch()" style="flex: 1; background: #03c75a; border-color: #03c75a; font-weight: 800; padding: 12px; font-size: 14px;">
-              🚀 네이버 로그인 및 내 매물 목록 불러오기
+            <button type="button" id="btn-do-naver-login" class="btn btn-primary" onclick="runAiPartnerLoginAndFetch()" style="flex: 1; background: #03c75a; border-color: #03c75a; font-weight: 800; padding: 12px; font-size: 14px;">
+              🚀 이실장 로그인 및 내 매물 목록 불러오기
             </button>
             <button type="button" class="btn btn-accent" onclick="runAuditAllListings()" id="btn-modal-audit-all" style="padding: 12px 18px; font-weight: 800; font-size: 13px; display: none; background: #3b82f6;">
               ⚡ 불러온 매물 대장 전수 검증 시작
@@ -982,7 +982,7 @@
         <!-- 탭 2: 매물 일괄 등록 (여러 URL / 매물번호 붙여넣기) -->
         <div id="naver-tab-content-bulk" style="display: none;">
           <div style="background: #0f172a; padding: 12px 14px; border-radius: 8px; border: 1px solid #1e293b; margin-bottom: 14px; font-size: 13px; color: #cbd5e1; line-height: 1.5;">
-            📋 <b>여러 매물 한 번에 붙여넣기:</b> 네이버 부동산에서 올리신 매물 URL 링크나 매물 번호들을 줄바꿈으로 구분하여 여러 개 붙여넣으시면, <b>모든 매물의 실시간 스펙을 한 번에 수집</b>하여 등록합니다.<br>
+            📋 <b>이실장(aipartner.plus) 매물 일괄 붙여넣기:</b> 이실장 관리자 화면(광고관리/매물목록)에서 복사하신 매물 번호나 링크, 엑셀 텍스트를 줄바꿈으로 붙여넣으시면, <b>모든 매물의 실시간 스펙을 한 번에 수집</b>하여 등록합니다.<br>
             <span style="display: inline-block; margin-top: 6px; color: #6ee7b7; font-size: 12px;">
               🛡️ <b>중복 및 기검수 보호:</b> 이미 등록되어 대장 검수가 완료된 매물은 불필요하게 다시 가져오지 않고 건너뛰어, 기존 검수 결과를 안전하게 보존합니다.
             </span>
@@ -1082,6 +1082,6 @@ https://new.land.naver.com/rooms?articleNo=2647844806"></textarea>
   </div>
 
   <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-  <script src="js/app.js?v=20260908_skip_audited"></script>
+  <script src="js/app.js?v=20260917_aipartner"></script>
 </body>
 </html>
