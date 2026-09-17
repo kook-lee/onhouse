@@ -2228,7 +2228,7 @@ window.saveRealtorSettings = async function(silent = false) {
       const subAgencyEl = document.getElementById('sub-naver-agency');
       if (subAgencyEl) subAgencyEl.textContent = agencyName || naverId || '연동 완료';
       if (!silent) {
-        showToastNotification('🔒 계정 저장 완료', '네이버 계정 정보가 내 PC 로컬 DB에 안전하게 암호화 저장되었습니다!', '🏢');
+        showToastNotification('🔒 계정 저장 완료', '이실장 계정 정보가 내 PC 로컬 DB에 안전하게 암호화 저장되었습니다!', '🏢');
       }
       return true;
     }
@@ -2239,7 +2239,38 @@ window.saveRealtorSettings = async function(silent = false) {
   return false;
 };
 
-// 이실장(AI실장 / aipartner.plus) 로그인 및 내 매물 목록 불러오기
+// 이실장(aipartner.plus) 공식 웹사이트 새 창 열기 (직접 로그인)
+window.openAiPartnerWeb = function() {
+  window.open('https://www.aipartner.plus/', '_blank');
+};
+
+// 클립보드에서 이실장 매물 복사본 즉시 가져와 대장 대조 실행
+window.importFromClipboardAndAudit = async function() {
+  let clipText = '';
+  try {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      clipText = await navigator.clipboard.readText();
+    }
+  } catch (err) {
+    console.warn('Clipboard read error:', err);
+  }
+
+  if (clipText && clipText.trim().length > 0) {
+    const textEl = document.getElementById('naver-bulk-text');
+    if (textEl) textEl.value = clipText.trim();
+    switchNaverModalTab('bulk');
+    await runNaverBulkRegister();
+  } else {
+    switchNaverModalTab('bulk');
+    const textEl = document.getElementById('naver-bulk-text');
+    if (textEl) {
+      textEl.focus();
+      alert('이실장(aipartner.plus)에서 매물 목록이나 번호를 복사(Ctrl+C)하신 후, 여기에 붙여넣기(Ctrl+V) 해주세요!');
+    }
+  }
+};
+
+// 이실장(AI실장 / aipartner.plus) 일반 아이디 로그인 및 내 매물 목록 불러오기
 window.runAiPartnerLoginAndFetch = async function() {
   const idEl = document.getElementById('naver-login-id');
   const pwEl = document.getElementById('naver-login-pw');

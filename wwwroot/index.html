@@ -911,52 +911,103 @@
           </button>
         </div>
 
-        <!-- 탭 1: 이실장(AI실장+) 로그인 및 내 매물 연동 영역 -->
+        <!-- 탭 1: 이실장(AI실장+) 웹사이트 직접 로그인 & 내 매물 연동 영역 -->
         <div id="naver-tab-content-login" style="display: block;">
-          <div style="background: #0f172a; padding: 14px 16px; border-radius: 8px; border: 1px solid #03c75a; margin-bottom: 16px; font-size: 13px; color: #cbd5e1; line-height: 1.6;">
-            <div style="font-weight: 700; color: #6ee7b7; font-size: 14px; margin-bottom: 4px;">
-              🤖 이실장(AI실장+, aipartner.plus) 공인중개사 계정 정보 입력
+          <!-- 메인 안내 카드: 이실장 웹사이트 직접 로그인 및 1초 연동 -->
+          <div style="background: linear-gradient(135deg, #0b1f1a 0%, #0f172a 100%); padding: 18px 20px; border-radius: 10px; border: 1.5px solid #03c75a; margin-bottom: 18px; box-shadow: 0 4px 14px rgba(3, 199, 90, 0.12);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+              <div style="font-weight: 800; color: #6ee7b7; font-size: 15px; display: flex; align-items: center; gap: 8px;">
+                <span>🌐</span> 이실장(AI실장+, aipartner.plus) 직접 로그인 & 1초 대장 대조
+              </div>
+              <span style="background: #064e3b; color: #a7f3d0; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #059669;">
+                실제 중개사 계정 실시간 연동
+              </span>
             </div>
-            이실장(aipartner.plus)에 등록하여 <b>네이버 부동산으로 전송한 내 매물 목록을 불러와 건축물대장과 1초 만에 전수 교차 검증</b>합니다.<br>
-            <span style="font-size: 11px; color: #94a3b8;">🔒 입력하신 이실장 계정 정보는 외부 전송 없이 내 PC의 <b>로컬 암호화 SQLite</b>에만 안전하게 저장됩니다.</span>
-          </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
-            <div>
-              <label for="naver-login-id" style="font-size: 13px; font-weight: 700; color: #6ee7b7; display: block; margin-bottom: 6px;">🆔 이실장 아이디 / 휴대폰 번호 *</label>
-              <input type="text" id="naver-login-id" class="input-text" style="width: 100%; padding: 11px 14px; font-size: 14px; background: #0b1320; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="예: 01012345678 또는 이실장 아이디">
+            <div style="color: #cbd5e1; font-size: 13px; line-height: 1.6; margin-bottom: 16px;">
+              🔒 <b>가짜 아이디를 만드는 것이 절대 아닙니다!</b><br>
+              이실장(aipartner.plus)은 카카오톡 / 네이버 간편 로그인 및 휴대폰 본인인증을 사용하므로, <b>대표님께서 평소 쓰시던 브라우저에서 이실장에 직접 로그인</b>하신 후 매물을 온하우스로 가져오시면 1초 만에 건축물대장과 전수 대조합니다.
             </div>
-            <div>
-              <label for="naver-login-pw" style="font-size: 13px; font-weight: 700; color: #6ee7b7; display: block; margin-bottom: 6px;">🔑 이실장 비밀번호 *</label>
-              <div style="position: relative;">
-                <input type="password" id="naver-login-pw" class="input-text" style="width: 100%; padding: 11px 14px; font-size: 14px; background: #0b1320; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="이실장 비밀번호 입력">
-                <button type="button" onclick="togglePasswordVisibility('naver-login-pw', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 14px;">👁️</button>
+
+            <!-- 2단계 원터치 작업 카드 -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+              <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                  <div style="font-weight: 800; color: #38bdf8; font-size: 13px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                    <span>1️⃣</span> 1단계: 이실장 공식 사이트 직접 로그인
+                  </div>
+                  <div style="font-size: 12px; color: #94a3b8; line-height: 1.5; margin-bottom: 12px;">
+                    새 창으로 이실장 웹사이트를 열고, 대표님의 실제 계정(카카오/네이버/휴대폰)으로 직접 로그인합니다.
+                  </div>
+                </div>
+                <button type="button" class="btn btn-sm" onclick="openAiPartnerWeb()" style="width: 100%; background: #0284c7; color: #fff; font-weight: 700; padding: 10px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px;">
+                  🌐 이실장 웹사이트 열기 (직접 로그인) &gt;
+                </button>
+              </div>
+
+              <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                  <div style="font-weight: 800; color: #34d399; font-size: 13px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                    <span>2️⃣</span> 2단계: 목록 복사(Ctrl+C) 후 1초 대조
+                  </div>
+                  <div style="font-size: 12px; color: #94a3b8; line-height: 1.5; margin-bottom: 12px;">
+                    이실장 [광고관리/매물목록]에서 매물들을 복사(Ctrl+C)한 후 아래 버튼을 누르면 즉시 대장 대조 시작!
+                  </div>
+                </div>
+                <button type="button" class="btn btn-sm" onclick="importFromClipboardAndAudit()" style="width: 100%; background: #03c75a; color: #fff; font-weight: 800; padding: 10px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px;">
+                  📋 복사한 매물 즉시 가져와 대장 검증 ⚡
+                </button>
               </div>
             </div>
-          </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px;">
-            <div>
-              <label for="naver-login-agency" style="font-size: 12px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">🏢 중개사무소 상호명</label>
-              <input type="text" id="naver-login-agency" class="input-text" style="width: 100%; padding: 10px 12px; font-size: 13px; background: #0b1320; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="예: 온하우스공인중개사사무소">
-            </div>
-            <div>
-              <label for="naver-login-realtor-id" style="font-size: 12px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">🔗 매물 관리 링크 또는 매물 번호 (선택)</label>
-              <input type="text" id="naver-login-realtor-id" class="input-text" style="width: 100%; padding: 10px 12px; font-size: 13px; background: #0b1320; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="이실장 매물 링크 또는 매물 번호">
+            <div style="background: rgba(15, 23, 42, 0.6); padding: 10px 14px; border-radius: 6px; font-size: 12px; color: #94a3b8; line-height: 1.5;">
+              💡 <b>기검수 매물 안전 보존:</b> 온하우스는 이미 대장 검수가 완료된 매물은 중복 조회하지 않고 자동으로 건너뛰어(Skip), 기존 검수 결과와 표제부 데이터를 안전하게 보호합니다.
             </div>
           </div>
 
-          <div style="display: flex; gap: 10px; margin-bottom: 18px;">
-            <button type="button" id="btn-save-naver-account" class="btn btn-secondary" onclick="saveRealtorSettings()" style="padding: 12px 18px; font-weight: 700; font-size: 13px;">
-              💾 계정 정보 로컬 저장
-            </button>
-            <button type="button" id="btn-do-naver-login" class="btn btn-primary" onclick="runAiPartnerLoginAndFetch()" style="flex: 1; background: #03c75a; border-color: #03c75a; font-weight: 800; padding: 12px; font-size: 14px;">
-              🚀 이실장 로그인 및 내 매물 목록 불러오기
-            </button>
-            <button type="button" class="btn btn-accent" onclick="runAuditAllListings()" id="btn-modal-audit-all" style="padding: 12px 18px; font-weight: 800; font-size: 13px; display: none; background: #3b82f6;">
-              ⚡ 불러온 매물 대장 전수 검증 시작
-            </button>
-          </div>
+          <!-- 접이식 보조 옵션: 이실장 일반 아이디/비밀번호 직접 입력 (선택) -->
+          <details style="background: #0b1320; border: 1px solid #1e293b; border-radius: 8px; padding: 12px 16px; margin-bottom: 18px;">
+            <summary style="font-size: 13px; font-weight: 700; color: #94a3b8; cursor: pointer; user-select: none;">
+              🔑 이실장 일반 아이디/비밀번호 직접 입력 (소셜 로그인이 아닌 일반 회원인 경우만 클릭)
+            </summary>
+            <div style="margin-top: 12px; font-size: 12px; color: #64748b; line-height: 1.5;">
+              카카오/네이버 소셜 로그인이 아닌 이실장 자체 아이디와 비밀번호를 보유하신 중개사님만 입력하세요. 계정 정보는 내 PC 로컬 DB에만 암호화 저장됩니다.
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; margin-bottom: 14px;">
+              <div>
+                <label for="naver-login-id" style="font-size: 12px; font-weight: 700; color: #cbd5e1; display: block; margin-bottom: 6px;">🆔 이실장 아이디 / 휴대폰 번호</label>
+                <input type="text" id="naver-login-id" class="input-text" style="width: 100%; padding: 9px 12px; font-size: 13px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="예: 01012345678 또는 이실장 아이디">
+              </div>
+              <div>
+                <label for="naver-login-pw" style="font-size: 12px; font-weight: 700; color: #cbd5e1; display: block; margin-bottom: 6px;">🔑 이실장 비밀번호</label>
+                <div style="position: relative;">
+                  <input type="password" id="naver-login-pw" class="input-text" style="width: 100%; padding: 9px 12px; font-size: 13px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="이실장 비밀번호 입력">
+                  <button type="button" onclick="togglePasswordVisibility('naver-login-pw', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 13px;">👁️</button>
+                </div>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+              <div>
+                <label for="naver-login-agency" style="font-size: 12px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">🏢 중개사무소 상호명</label>
+                <input type="text" id="naver-login-agency" class="input-text" style="width: 100%; padding: 9px 12px; font-size: 13px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="예: 온하우스공인중개사사무소">
+              </div>
+              <div>
+                <label for="naver-login-realtor-id" style="font-size: 12px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">🔗 매물 관리 링크 또는 매물 번호 (선택)</label>
+                <input type="text" id="naver-login-realtor-id" class="input-text" style="width: 100%; padding: 9px 12px; font-size: 13px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #fff;" placeholder="이실장 매물 링크 또는 매물 번호">
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+              <button type="button" id="btn-save-naver-account" class="btn btn-secondary btn-sm" onclick="saveRealtorSettings()" style="padding: 10px 16px; font-weight: 700; font-size: 12px;">
+                💾 계정 정보 로컬 저장
+              </button>
+              <button type="button" id="btn-do-naver-login" class="btn btn-primary btn-sm" onclick="runAiPartnerLoginAndFetch()" style="flex: 1; background: #03c75a; border-color: #03c75a; font-weight: 700; padding: 10px; font-size: 13px;">
+                🚀 일반 아이디로 매물 수집 시도
+              </button>
+            </div>
+          </details>
 
           <!-- 내 매물 대시보드 요약 및 테이블 영역 -->
           <div id="naver-realtor-listing-area" style="display: none; border-top: 1px solid #334155; padding-top: 16px;">
