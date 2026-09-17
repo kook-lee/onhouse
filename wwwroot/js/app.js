@@ -2290,6 +2290,46 @@ window.copyAiPartnerLogs = function() {
   }
 };
 
+// 이실장 엑셀 파일(.xlsx, .csv) 직접 업로드 처리
+window.uploadAiPartnerExcel = async function(input) {
+  if (!input || !input.files || input.files.length === 0) return;
+  const file = input.files[0];
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('userId', currentUser ? currentUser.id : 1);
+
+  showToastNotification('⏳ 엑셀 매물 분석 중', `[${file.name}] 에서 10자리 매물번호를 추출하고 있습니다...`, '📂');
+
+  try {
+    const res = await fetch('/api/naver/listings/upload-excel', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    input.value = '';
+
+    if (data.success) {
+      await loadNaverListings();
+      loadModalListingTable();
+      showToastNotification('🎉 엑셀 매물 등록 성공', data.message, '🟢');
+
+      if (data.successCount > 0) {
+        if (confirm(`${data.message}\n\n지금 바로 공공 건축물대장 1초 전수 대조 검증을 실행하시겠습니까?`)) {
+          closeNaverInspectModal();
+          switchMainView('naver');
+          runAuditAllListings();
+        }
+      }
+    } else {
+      alert('⚠️ ' + (data.message || '엑셀 파일 처리 중 오류가 발생했습니다.'));
+    }
+  } catch (err) {
+    console.error('uploadAiPartnerExcel error:', err);
+    alert('엑셀 파일 업로드 중 통신 오류가 발생했습니다: ' + err.message);
+    input.value = '';
+  }
+};
+
 // 이실장(AI실장 / aipartner.com) 로그인 및 내 매물 목록 불러오기
 window.runAiPartnerLoginAndFetch = async function() {
   const idEl = document.getElementById('naver-login-id');

@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
@@ -495,6 +496,84 @@ try
             failedCount,
             message = summaryMsg,
             errors,
+            listings = currentList
+        });
+    });
+
+    // 3-1. 엑셀/CSV 파일 직접 업로드하여 매물 일괄 등록
+    app.MapPost("/api/naver/listings/upload-excel", async (HttpRequest request, NaverLandService naverService, DatabaseService db) =>
+    {
+        if (!request.HasFormContentType) return Results.BadRequest(new { success = false, message = "파일이 전송되지 않았습니다." });
+        var form = await request.ReadFormAsync();
+        var file = form.Files.GetFile("file");
+        if (file == null || file.Length == 0) return Results.BadRequest(new { success = false, message = "선택된 파일이 비어있습니다." });
+
+        var numbers = new HashSet<string>();
+        string ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+
+        try
+        {
+            if (ext == ".xlsx")
+            {
+                using var stream = file.OpenReadStream();
+                using var zip = new ZipArchive(stream, ZipArchiveMode.Read);
+                foreach (var entry in zip.Entries)
+                {
+                    if (entry.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+                    {
+                        using var entryStream = entry.Open();
+                        using var reader = new StreamReader(entryStream);
+                        string xml = await reader.ReadToEndAsync();
+                        var matches = Regex.Matches(xml, @"\b([0-9]{9,11})\b");
+                        foreach (Match m in matches)
+                        {
+                            numbers.Add(m.Groups[1].Value);
+                        }
+                    }
+                }
+            }
+            else // .csv, .txt
+            {
+                using var reader = new StreamReader(file.OpenReadStream());
+                string text = await reader.ReadToEndAsync();
+                foreach (var n in naverService.ExtractMultipleArticleNumbers(text))
+                {
+                    numbers.Add(n);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            return Results.BadRequest(new { success = false, message = $"파일 분석 중 오류가 발생했습니다: {ex.Message}" });
+        }
+
+        if (numbers.Count == 0)
+        {
+            return Results.BadRequest(new { success = false, message = "업로드된 파일에서 유효한 10자리 매물 번호를 찾지 못했습니다." });
+        }
+
+        int uId = 1;
+        if (form.TryGetValue("userId", out var uIdVal) && int.TryParse(uIdVal, out int parsedUid))
+        {
+            uId = parsedUid;
+        }
+
+        var (successCount, failedCount, skippedCount, errors) = 
+            await naverService.RegisterMultipleArticlesAsync(numbers.ToList(), uId, db, skipAlreadyAudited: true);
+
+        var currentList = await db.GetNaverListingsAsync(uId);
+        string resultMsg = skippedCount > 0
+            ? $"엑셀 파일에서 총 {numbers.Count}건 매물 번호 추출 완료! (신규 수집: {successCount}건, 이미 대장 검수 완료된 {skippedCount}건은 안전 보존)"
+            : $"엑셀 파일에서 총 {numbers.Count}건 매물 번호를 성공적으로 수집하여 등록했습니다.";
+
+        return Results.Ok(new
+        {
+            success = true,
+            totalRequested = numbers.Count,
+            successCount,
+            skippedCount,
+            failedCount,
+            message = resultMsg,
             listings = currentList
         });
     });
