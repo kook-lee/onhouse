@@ -81,10 +81,11 @@ namespace OnHouseLocal.Services
             {
                 try
                 {
-                    Log("이실장 SSO 자동 연동 모듈 구동 중...");
+                    string nodeExe = FindNodeExecutable();
+                    Log($"이실장 SSO 자동 연동 모듈 구동 중 (Node: {nodeExe})...");
                     var psi = new ProcessStartInfo
                     {
-                        FileName = "node",
+                        FileName = nodeExe,
                         Arguments = $"\"{scriptPath}\" \"{memberId}\" \"{memberPw}\"",
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
@@ -192,6 +193,25 @@ namespace OnHouseLocal.Services
                 : $"이실장 연동 성공! 총 {targetArticleNumbers.Count}건의 매물 스펙을 수집하여 등록했습니다.";
 
             return (true, message, targetArticleNumbers.Count, successCount, skippedCount, failedCount, errors, logs);
+        }
+
+        private static string FindNodeExecutable()
+        {
+            var candidates = new[]
+            {
+                @"C:\Program Files\nodejs\node.exe",
+                @"C:\Program Files (x86)\nodejs\node.exe",
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Programs\node\node.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), @"AppData\Roaming\nvm\default\node.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"npm\node.exe")
+            };
+
+            foreach (var p in candidates)
+            {
+                if (File.Exists(p)) return p;
+            }
+
+            return "node";
         }
     }
 }
