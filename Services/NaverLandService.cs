@@ -602,9 +602,9 @@ namespace OnHouseLocal.Services
                 try
                 {
                     // 1. 이미 DB에 등록되어 있고 대장 검수(Safe, Warning, Danger)가 완료된 매물은 중복 수집 방지
+                    var existing = await db.GetNaverListingByArticleNumberAsync(artNo, userId);
                     if (skipAlreadyAudited)
                     {
-                        var existing = await db.GetNaverListingByArticleNumberAsync(artNo, userId);
                         if (existing != null && !string.IsNullOrEmpty(existing.LedgerStatus) && existing.LedgerStatus != "Pending")
                         {
                             skipped++;
@@ -620,24 +620,30 @@ namespace OnHouseLocal.Services
                         continue;
                     }
 
-                    string priceStr = "";
+                    string priceStr = existing?.PriceDisplay ?? "";
                     if (detail.Price > 0)
                     {
                         if (detail.TradeType == "매매") priceStr = $"매매 {FormatMoney(detail.Price)}";
                         else if (detail.TradeType == "전세") priceStr = $"전세 {FormatMoney(detail.Price)}";
-                        else priceStr = $"월세 {FormatMoney(detail.PreviousDeposit)}/{detail.Price}";
+                        else priceStr = detail.PreviousDeposit > 0 
+                            ? $"월세 {FormatMoney(detail.PreviousDeposit)}/{FormatMoney(detail.Price)}" 
+                            : $"월세 {FormatMoney(detail.Price)}";
                     }
 
                     string floorInfo = "";
                     if (!string.IsNullOrEmpty(detail.TargetFloor)) floorInfo = $"{detail.TargetFloor}층";
                     if (detail.TotalFloor > 0) floorInfo = string.IsNullOrEmpty(floorInfo) ? $"총 {detail.TotalFloor}층" : $"{floorInfo}/{detail.TotalFloor}층";
 
+                    string finalArticleName = !string.IsNullOrEmpty(existing?.ArticleName)
+                        ? existing.ArticleName
+                        : (string.IsNullOrEmpty(detail.ArticleName) ? detail.Title : detail.ArticleName);
+
                     var item = new NaverListingItem
                     {
                         UserId = userId,
                         ArticleNumber = detail.ArticleNumber,
-                        ArticleName = string.IsNullOrEmpty(detail.ArticleName) ? detail.Title : detail.ArticleName,
-                        TradeType = detail.TradeType,
+                        ArticleName = finalArticleName,
+                        TradeType = string.IsNullOrEmpty(detail.TradeType) ? (existing?.TradeType ?? "") : detail.TradeType,
                         RealEstateType = detail.RealEstateType,
                         PriceDisplay = priceStr,
                         FloorInfo = floorInfo,
@@ -647,9 +653,9 @@ namespace OnHouseLocal.Services
                         TotalParking = detail.TotalParking,
                         ApprovalDate = detail.ApprovalDate,
                         RawJson = JsonSerializer.Serialize(detail),
-                        LedgerStatus = "Pending",
-                        LedgerMessage = "대장 검증 대기 중",
-                        CreatedAt = DateTime.Now
+                        LedgerStatus = existing?.LedgerStatus ?? "Pending",
+                        LedgerMessage = existing?.LedgerMessage ?? "대장 검증 대기 중",
+                        CreatedAt = existing?.CreatedAt ?? DateTime.Now
                     };
 
                     await db.UpsertNaverListingAsync(item);
@@ -668,13 +674,31 @@ namespace OnHouseLocal.Services
 
         private static string FormatMoney(long amount)
         {
-            if (amount >= 10000)
+            if (amount <= 0) return "";
+
+            // 1) 금액이 '원' 단위로 들어온 경우 (100만원 이상)
+            if (amount >= 1_000_000)
             {
-                long uk = amount / 10000;
-                long man = amount % 10000;
-                return man > 0 ? $"{uk}억 {man:N0}만" : $"{uk}억";
+                long manWon = amount / 10_000;
+                if (manWon >= 10_000)
+                {
+                    long uk = manWon / 10_000;
+                    long man = manWon % 10_000;
+                    return man > 0 ? $"{uk}억 {man:N0}만" : $"{uk}억";
+                }
+                return $"{manWon:N0}만";
             }
-            return $"{amount:N0}만";
+            else
+            {
+                // 2) 금액이 이미 '만원' 단위인 경우 (예: 16,500 -> 1억 6,500만)
+                if (amount >= 10_000)
+                {
+                    long uk = amount / 10_000;
+                    long man = amount % 10_000;
+                    return man > 0 ? $"{uk}억 {man:N0}만" : $"{uk}억";
+                }
+                return $"{amount:N0}만";
+            }
         }
 
         /// <summary>

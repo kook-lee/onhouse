@@ -10,11 +10,24 @@ using OnHouseLocal.Models;
 
 namespace OnHouseLocal.Services
 {
+    public class AiPartnerListingItem
+    {
+        public string articleNumber { get; set; } = "";
+        public string articleName { get; set; } = "";
+        public string tradeType { get; set; } = "";
+        public string rawPrice { get; set; } = "";
+        public string priceDisplay { get; set; } = "";
+        public string dong { get; set; } = "";
+        public double exclusiveArea { get; set; }
+        public double supplyArea { get; set; }
+    }
+
     public class AiPartnerSyncResult
     {
         public bool success { get; set; }
         public string message { get; set; } = "";
         public List<string> articleNumbers { get; set; } = new();
+        public List<AiPartnerListingItem> items { get; set; } = new();
         public List<string> logs { get; set; } = new();
     }
     public class AiPartnerService
@@ -103,7 +116,29 @@ namespace OnHouseLocal.Services
                                     syncSuccess = syncResult.success;
                                     syncMessage = syncResult.message;
 
-                                    if (syncResult.articleNumbers != null)
+                                    if (syncResult.items != null && syncResult.items.Count > 0)
+                                    {
+                                        foreach (var it in syncResult.items)
+                                        {
+                                            if (string.IsNullOrWhiteSpace(it.articleNumber)) continue;
+                                            targetArticleNumbers.Add(it.articleNumber);
+                                            await db.UpsertNaverListingAsync(new NaverListingItem
+                                            {
+                                                UserId = userId,
+                                                ArticleNumber = it.articleNumber,
+                                                ArticleName = it.articleName,
+                                                TradeType = it.tradeType,
+                                                PriceDisplay = it.priceDisplay,
+                                                AreaM2 = it.exclusiveArea > 0 ? it.exclusiveArea : it.supplyArea,
+                                                Address = !string.IsNullOrEmpty(it.dong) ? $"서울 은평구 {it.dong}" : "",
+                                                LedgerStatus = "Pending",
+                                                LedgerMessage = "대장 검증 대기 중",
+                                                CreatedAt = DateTime.Now
+                                            });
+                                        }
+                                        Log($"✨ 이실장 실매물 {syncResult.items.Count}건 상세 정보 로컬 DB 즉시 반영 완료");
+                                    }
+                                    else if (syncResult.articleNumbers != null)
                                     {
                                         foreach (var artNo in syncResult.articleNumbers)
                                         {

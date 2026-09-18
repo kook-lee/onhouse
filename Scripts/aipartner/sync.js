@@ -178,45 +178,94 @@ async function main() {
 
         log('이실장 포털 정식 세션 쿠키 수령 완료');
 
-        // 9. 광고 매물 목록 다중 페이지 조회
-        const allArticleNos = new Set();
+        function formatPrice(dealType, rawPrice) {
+            if (!rawPrice) return '';
+            rawPrice = rawPrice.trim();
+            if (dealType === '월세') {
+                return `월세 ${rawPrice.replace(/\s*\/\s*/, '/')}`;
+            }
+            const cleaned = rawPrice.replace(/[^0-9]/g, '');
+            if (cleaned) {
+                const num = parseInt(cleaned, 10);
+                if (num >= 10000) {
+                    const uk = Math.floor(num / 10000);
+                    const man = num % 10000;
+                    const s = man > 0 ? `${uk}억 ${man.toLocaleString()}만` : `${uk}억`;
+                    return `${dealType} ${s}`.trim();
+                } else {
+                    return `${dealType} ${num.toLocaleString()}만`.trim();
+                }
+            }
+            return `${dealType} ${rawPrice}`.trim();
+        }
+
+        // 9. 광고 매물 목록 다중 페이지 조회 및 상세 스펙 파싱
+        const allItems = [];
+        const seenNos = new Set();
         for (let page = 1; page <= 10; page++) {
             const url = `https://www.aipartner.com/offerings/ad_list?adName=ad&page=${page}`;
             const res = await fetch(url, { headers: { 'Cookie': getCookieHeader() } });
             const html = await res.text();
             
-            const matches = (html.match(/<div class="numberN"[^>]*>.*?([0-9]{9,11}).*?<\/div>/gs) || [])
-                .map(x => (x.match(/([0-9]{9,11})/) || [])[1])
-                .filter(Boolean);
+            const rows = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
+            let pageCount = 0;
 
-            // 보조 정규식 (data-seq 등)
-            const seqMatches = (html.match(/data-seq=["']([0-9]{9,11})["']/g) || [])
-                .map(x => (x.match(/([0-9]{9,11})/) || [])[1])
-                .filter(Boolean);
+            for (const r of rows) {
+                const mNo = r.match(/<div class="numberN"[^>]*>[\s\S]*?([0-9]{9,11})[\s\S]*?<\/div>/) ||
+                            r.match(/data-seq=["']([0-9]{9,11})["']/);
+                if (!mNo) continue;
+                const artNo = mNo[1];
+                if (seenNos.has(artNo)) continue;
+                seenNos.add(artNo);
 
-            const pageArticles = new Set([...matches, ...seqMatches]);
-            let newInPage = 0;
-            for (const a of pageArticles) {
-                if (!allArticleNos.has(a)) {
-                    allArticleNos.add(a);
-                    newInPage++;
-                }
+                const mName = r.match(/<span[^>]*class=["']pre-wrap["'][^>]*>([\s\S]*?)<\/span>/);
+                const name = mName ? mName[1].trim().replace(/\s+/g, ' ') : '';
+
+                const mType = r.match(/<span[^>]*class=["']dealType["'][^>]*>([\s\S]*?)<\/span>/);
+                const dealType = mType ? mType[1].trim() : '';
+
+                const mPrice = r.match(/<span[^>]*class=["']price["'][^>]*>([\s\S]*?)<\/span>/);
+                const price = mPrice ? mPrice[1].trim() : '';
+
+                const mDong = r.match(/<p[^>]*class=["']dongInfo["'][^>]*>([\s\S]*?)<\/p>/);
+                const dong = mDong ? mDong[1].trim() : '';
+
+                const mExArea = r.match(/data-gu="\[전\]"[^>]*data-value="([^"]+)"/);
+                const exclusiveArea = mExArea ? parseFloat(mExArea[1]) : 0;
+
+                const mSpArea = r.match(/data-gu="\[공\]"[^>]*data-value="([^"]+)"/);
+                const supplyArea = mSpArea ? parseFloat(mSpArea[1]) : 0;
+
+                const displayPrice = formatPrice(dealType, price);
+
+                allItems.push({
+                    articleNumber: artNo,
+                    articleName: name,
+                    tradeType: dealType,
+                    rawPrice: price,
+                    priceDisplay: displayPrice,
+                    dong,
+                    exclusiveArea,
+                    supplyArea
+                });
+                pageCount++;
             }
 
-            if (pageArticles.size > 0) {
-                log(`📄 광고 매물 ${page}페이지 조회: ${pageArticles.size}건 확인 (누적 ${allArticleNos.size}건)`);
+            if (pageCount > 0) {
+                log(`📄 광고 매물 ${page}페이지 조회: ${pageCount}건 확인 (누적 ${allItems.length}건)`);
             }
 
-            if (pageArticles.size === 0) break;
+            if (pageCount === 0 && page > 2) break;
         }
 
-        const articleList = Array.from(allArticleNos);
+        const articleList = allItems.map(x => x.articleNumber);
         log(`✨ 이실장 전체 광고 매물 수집 완료: 총 ${articleList.length}건`);
 
         console.log(JSON.stringify({
             success: true,
             message: `이실장 연동 성공! 총 ${articleList.length}건의 광고 매물 식별 완료`,
             articleNumbers: articleList,
+            items: allItems,
             logs
         }));
     } catch (err) {

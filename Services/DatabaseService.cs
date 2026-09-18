@@ -487,17 +487,17 @@ namespace OnHouseLocal.Services
             {
                 string updateSql = @"
                     UPDATE NaverListings SET
-                        ArticleName = @ArticleName,
-                        TradeType = @TradeType,
-                        RealEstateType = @RealEstateType,
-                        PriceDisplay = @PriceDisplay,
-                        FloorInfo = @FloorInfo,
-                        AreaM2 = @AreaM2,
-                        Address = @Address,
+                        ArticleName = CASE WHEN @ArticleName != '' THEN @ArticleName ELSE ArticleName END,
+                        TradeType = CASE WHEN @TradeType != '' THEN @TradeType ELSE TradeType END,
+                        RealEstateType = CASE WHEN @RealEstateType != '' THEN @RealEstateType ELSE RealEstateType END,
+                        PriceDisplay = CASE WHEN @PriceDisplay != '' THEN @PriceDisplay ELSE PriceDisplay END,
+                        FloorInfo = CASE WHEN @FloorInfo != '' THEN @FloorInfo ELSE FloorInfo END,
+                        AreaM2 = CASE WHEN @AreaM2 > 0 THEN @AreaM2 ELSE AreaM2 END,
+                        Address = CASE WHEN @Address != '' THEN @Address ELSE Address END,
                         HasElevator = @HasElevator,
-                        TotalParking = @TotalParking,
-                        ApprovalDate = @ApprovalDate,
-                        RawJson = @RawJson
+                        TotalParking = CASE WHEN @TotalParking > 0 THEN @TotalParking ELSE TotalParking END,
+                        ApprovalDate = CASE WHEN @ApprovalDate != '' THEN @ApprovalDate ELSE ApprovalDate END,
+                        RawJson = CASE WHEN @RawJson != '' THEN @RawJson ELSE RawJson END
                     WHERE Id = @Id;";
                 item.Id = existing.Id;
                 await connection.ExecuteAsync(updateSql, item);
