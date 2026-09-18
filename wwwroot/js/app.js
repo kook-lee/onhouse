@@ -2438,7 +2438,7 @@ window.runAiPartnerLoginAndFetch = async function() {
       switchMainView('naver');
       await loadNaverListings();
       if (data.successCount > 0) {
-        if (confirm(`${data.message}\n\n[내 매물보기]에 109건이 등록되었습니다. 지금 바로 공공 건축물대장 1초 전수 대조 검증을 실행하시겠습니까?`)) {
+        if (confirm(`${data.message}\n\n[내 매물보기]로 이동했습니다. 지금 바로 공공 건축물대장 1초 전수 대조 검증을 실행하시겠습니까?`)) {
           runAuditAllListings();
         }
       }
@@ -2460,7 +2460,7 @@ window.runAiPartnerLoginAndFetch = async function() {
     alert('이실장 연동 중 오류가 발생했습니다: ' + err.message);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '🚀 이실장 매물 전체(109건) 1초 자동 가져오기';
+    btn.innerHTML = '🚀 이실장 광고 매물 전체 자동 가져오기';
   }
 };
 
