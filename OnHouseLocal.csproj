@@ -32,6 +32,10 @@
 
   <ItemGroup>
     <EmbeddedResource Include="wwwroot\**" />
+    <None Update="Scripts\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <EmbeddedResource Include="Scripts\**\*" />
   </ItemGroup>
 
 </Project>

@@ -132,6 +132,32 @@ try
                     stream.CopyTo(fs);
                 }
             }
+            else if (rName.StartsWith("OnHouseLocal.Scripts.", StringComparison.OrdinalIgnoreCase))
+            {
+                string relPath = rName.Substring("OnHouseLocal.Scripts.".Length);
+                int lastDot = relPath.LastIndexOf('.');
+                if (lastDot > 0)
+                {
+                    int extDot = relPath.LastIndexOf('.', lastDot - 1);
+                    if (extDot > 0)
+                    {
+                        string dirPart = relPath.Substring(0, extDot).Replace('.', Path.DirectorySeparatorChar);
+                        string filePart = relPath.Substring(extDot + 1);
+                        relPath = Path.Combine(dirPart, filePart);
+                    }
+                }
+
+                string outPath = Path.Combine(baseDir, "Scripts", relPath);
+                string? outDir = Path.GetDirectoryName(outPath);
+                if (outDir != null && !Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
+
+                using var stream = asm.GetManifestResourceStream(rName);
+                if (stream != null)
+                {
+                    using var fs = new FileStream(outPath, FileMode.Create, FileAccess.Write);
+                    stream.CopyTo(fs);
+                }
+            }
         }
     }
     catch { }

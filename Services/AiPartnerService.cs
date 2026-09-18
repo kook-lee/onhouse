@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Text.Json;
@@ -9,6 +10,13 @@ using OnHouseLocal.Models;
 
 namespace OnHouseLocal.Services
 {
+    public class AiPartnerSyncResult
+    {
+        public bool success { get; set; }
+        public string message { get; set; } = "";
+        public List<string> articleNumbers { get; set; } = new();
+        public List<string> logs { get; set; } = new();
+    }
     public class AiPartnerService
     {
         public async Task<(bool success, string message, int extractedCount, int successCount, int skippedCount, int failedCount, List<string> errors, List<string> logs)> 
@@ -45,222 +53,85 @@ namespace OnHouseLocal.Services
                 }
             }
 
-            // 3. 이실장 (https://www.aipartner.com) 웹 로그인 및 광고 목록 크롤링 시도
-            try
+            // 3. 이실장 SSO 자동 로그인 및 전체 광고 매물 수집기 실행 (Node.js 기반)
+            string baseDir = AppContext.BaseDirectory;
+            string scriptPath = Path.Combine(baseDir, "Scripts", "aipartner", "sync.js");
+            if (!File.Exists(scriptPath))
             {
-                using var handler = new HttpClientHandler
+                scriptPath = Path.Combine(Directory.GetCurrentDirectory(), "Scripts", "aipartner", "sync.js");
+            }
+
+            bool syncSuccess = false;
+            string syncMessage = "";
+
+            if (File.Exists(scriptPath))
+            {
+                try
                 {
-                    AllowAutoRedirect = true,
-                    UseCookies = true,
-                    CookieContainer = new System.Net.CookieContainer()
-                };
-                using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
-                
-                string userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
-                client.DefaultRequestHeaders.Add("User-Agent", userAgent);
-                client.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
-                client.DefaultRequestHeaders.Add("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8");
-
-                string loginPageUrl = "https://www.aipartner.com/integrated/login?serviceCode=1000";
-                Log($"이실장 로그인 게이트웨이 접속 중: {loginPageUrl}");
-
-                var getRes = await client.GetAsync(loginPageUrl);
-                Log($"로그인 페이지 응답: HTTP {(int)getRes.StatusCode} {getRes.ReasonPhrase}");
-
-                if (getRes.IsSuccessStatusCode)
-                {
-                    string html = await getRes.Content.ReadAsStringAsync();
-                    string csrfToken = "";
-                    var m = Regex.Match(html, @"name=""csrf-token""\s+content=""([^""]+)""");
-                    if (m.Success) csrfToken = m.Groups[1].Value;
-                    
-                    if (!string.IsNullOrEmpty(csrfToken))
+                    Log("이실장 SSO 자동 연동 모듈 구동 중...");
+                    var psi = new ProcessStartInfo
                     {
-                        Log($"보안 토큰(CSRF-TOKEN) 획득 완료: {csrfToken.Substring(0, Math.Min(8, csrfToken.Length))}...");
-                    }
-                    else
-                    {
-                        Log("CSRF 토큰 없음 - 세션 쿠키 기반으로 계속 시도");
-                    }
-
-                    string cleanId = memberId.Trim().Replace("-", "");
-                    bool isPhone = Regex.IsMatch(cleanId, @"^01[0-9]{8,9}$");
-
-                    if (isPhone)
-                    {
-                        Log($"휴대폰 계정({cleanId}) 감지 -> 이실장 인증 API(loginStore) 호출...");
-                    }
-                    else
-                    {
-                        Log($"일반 아이디({cleanId}) 감지 -> 이실장 인증 API(loginStore) 호출...");
-                    }
-
-                    var postData = new Dictionary<string, string>
-                    {
-                        { "member-id", cleanId },
-                        { "member-pw", memberPw },
-                        { "agentId", "100" },
-                        { "serviceCode", "1000" },
-                        { "loginCode", "1" },
-                        { "requestPage", "https://www.aipartner.com/home" }
+                        FileName = "node",
+                        Arguments = $"\"{scriptPath}\" \"{memberId}\" \"{memberPw}\"",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        StandardOutputEncoding = System.Text.Encoding.UTF8,
+                        StandardErrorEncoding = System.Text.Encoding.UTF8
                     };
-                    if (!string.IsNullOrEmpty(csrfToken)) postData["_token"] = csrfToken;
 
-                    using var req = new HttpRequestMessage(HttpMethod.Post, "https://www.aipartner.com/api/web/integrated/loginStore")
+                    using var proc = Process.Start(psi);
+                    if (proc != null)
                     {
-                        Content = new FormUrlEncodedContent(postData)
-                    };
-                    req.Headers.Add("Referer", loginPageUrl);
-                    req.Headers.Add("Origin", "https://www.aipartner.com");
-                    req.Headers.Add("X-Requested-With", "XMLHttpRequest");
-                    if (!string.IsNullOrEmpty(csrfToken)) req.Headers.Add("X-CSRF-TOKEN", csrfToken);
+                        string output = await proc.StandardOutput.ReadToEndAsync();
+                        string error = await proc.StandardError.ReadToEndAsync();
+                        await proc.WaitForExitAsync();
 
-                    var postRes = await client.SendAsync(req);
-                    Log($"로그인 요청 전송 -> 서버 응답: HTTP {(int)postRes.StatusCode}");
-
-                    string postBody = await postRes.Content.ReadAsStringAsync();
-                    bool loginSuccess = false;
-                    string serverMsg = "";
-
-                    try
-                    {
-                        using var doc = JsonDocument.Parse(postBody);
-                        if (doc.RootElement.TryGetProperty("result", out var resElem))
+                        if (!string.IsNullOrWhiteSpace(output))
                         {
-                            loginSuccess = resElem.GetBoolean();
-                        }
-                        if (doc.RootElement.TryGetProperty("message", out var msgElem))
-                        {
-                            serverMsg = msgElem.GetString() ?? "";
-                        }
-                    }
-                    catch
-                    {
-                        serverMsg = postBody.Length > 200 ? postBody.Substring(0, 200) : postBody;
-                    }
-
-                    if (loginSuccess)
-                    {
-                        Log("🎉 이실장 로그인 성공! 인증 세션 발급 완료.");
-                        
-                        string[] candidateUrls = new[]
-                        {
-                            "https://www.aipartner.com/api/web/offerings/adList",
-                            "https://www.aipartner.com/api/web/offerings/adList?page=1&size=200",
-                            "https://www.aipartner.com/api/web/offerings/adList?page=1&limit=200",
-                            "https://www.aipartner.com/api/web/offerings/adList?page=1&pageSize=200",
-                            "https://www.aipartner.com/api/web/offerings/adList?page=1&rowNum=200",
-                            "https://www.aipartner.com/api/web/offerings/simpleList",
-                            "https://www.aipartner.com/api/web/offerings/simpleList?page=1&limit=200",
-                            "https://www.aipartner.com/api/web/offerings/adFailList",
-                            "https://www.aipartner.com/api/web/offerings/adCmplList",
-                            "https://www.aipartner.com/offerings/adlist",
-                            "https://www.aipartner.com/offerings/admanage",
-                            "https://www.aipartner.com/home",
-                            "https://www.aipartner.plus/api/web/offerings/adList"
-                        };
-
-                        foreach (var url in candidateUrls)
-                        {
-                            Log($"매물 데이터 수집 요청: {url}");
                             try
                             {
-                                using var pageReq = new HttpRequestMessage(HttpMethod.Get, url);
-                                pageReq.Headers.Add("Accept", "application/json, text/plain, */*");
-                                pageReq.Headers.Add("X-Requested-With", "XMLHttpRequest");
-                                pageReq.Headers.Add("Referer", "https://www.aipartner.com/home");
-                                pageReq.Headers.Add("Origin", "https://www.aipartner.com");
-
-                                var adRes = await client.SendAsync(pageReq);
-                                Log($"응답: HTTP {(int)adRes.StatusCode}");
-
-                                if (adRes.IsSuccessStatusCode)
+                                var syncResult = JsonSerializer.Deserialize<AiPartnerSyncResult>(output);
+                                if (syncResult != null)
                                 {
-                                    string adHtml = await adRes.Content.ReadAsStringAsync();
-                                    int beforeCount = targetArticleNumbers.Count;
-
-                                    // 1. 네이버 & 국토부 매물번호 9~11자리 추출
-                                    foreach (var extractedNo in naverService.ExtractMultipleArticleNumbers(adHtml))
+                                    if (syncResult.logs != null)
                                     {
-                                        targetArticleNumbers.Add(extractedNo);
+                                        foreach (var l in syncResult.logs) Log(l);
                                     }
 
-                                    // 2. 정규식 보강 추출 (articleNo, atclNo, offeringSeq 등)
-                                    var matches = Regex.Matches(adHtml, @"(?:articleNo|articleNumber|atclNo|naverArticleNo|cpArticleNo|articles|info|offerings|itemNo|article_no)[/=:\s""']+([0-9]{9,11})");
-                                    foreach (Match match in matches)
+                                    syncSuccess = syncResult.success;
+                                    syncMessage = syncResult.message;
+
+                                    if (syncResult.articleNumbers != null)
                                     {
-                                        if (match.Groups.Count > 1 && !string.IsNullOrEmpty(match.Groups[1].Value))
+                                        foreach (var artNo in syncResult.articleNumbers)
                                         {
-                                            targetArticleNumbers.Add(match.Groups[1].Value);
+                                            targetArticleNumbers.Add(artNo);
                                         }
                                     }
-
-                                    int newlyFound = targetArticleNumbers.Count - beforeCount;
-                                    if (newlyFound > 0)
-                                    {
-                                        Log($"✨ 매물번호 {newlyFound}건 발견 (누적 총 {targetArticleNumbers.Count}건)");
-                                    }
-
-                                    // 3. 만약 JSON에 pagination이 있다면 2~5페이지도 추가 조회
-                                    try
-                                    {
-                                        using var doc = JsonDocument.Parse(adHtml);
-                                        if (doc.RootElement.ValueKind == JsonValueKind.Object)
-                                        {
-                                            // 추가 페이지 자동 탐색
-                                            for (int page = 2; page <= 6; page++)
-                                            {
-                                                string pagedUrl = url.Contains("?") 
-                                                    ? Regex.Replace(url, @"page=\d+", $"page={page}") 
-                                                    : $"{url}?page={page}&size=200";
-                                                
-                                                if (pagedUrl == url) break;
-
-                                                using var nextReq = new HttpRequestMessage(HttpMethod.Get, pagedUrl);
-                                                nextReq.Headers.Add("Accept", "application/json, text/plain, */*");
-                                                nextReq.Headers.Add("X-Requested-With", "XMLHttpRequest");
-                                                var nextRes = await client.SendAsync(nextReq);
-                                                if (nextRes.IsSuccessStatusCode)
-                                                {
-                                                    string nextHtml = await nextRes.Content.ReadAsStringAsync();
-                                                    int pBefore = targetArticleNumbers.Count;
-                                                    foreach (var extractedNo in naverService.ExtractMultipleArticleNumbers(nextHtml))
-                                                    {
-                                                        targetArticleNumbers.Add(extractedNo);
-                                                    }
-                                                    int pFound = targetArticleNumbers.Count - pBefore;
-                                                    if (pFound == 0) break; // 더 이상 없으면 중단
-                                                    Log($"📄 {page}페이지에서 매물 {pFound}건 추가 수집 (누적 {targetArticleNumbers.Count}건)");
-                                                }
-                                            }
-                                        }
-                                    }
-                                    catch { }
                                 }
                             }
-                            catch (Exception crawlEx)
+                            catch (Exception parseEx)
                             {
-                                Log($"페이지 조회 알림: {crawlEx.Message}");
+                                Log($"응답 파싱 안내: {parseEx.Message}");
                             }
                         }
-                    }
-                    else
-                    {
-                        Log($"❌ 이실장 로그인 실패 응답: {serverMsg}");
-                        if (!isPhone)
+
+                        if (!string.IsNullOrWhiteSpace(error))
                         {
-                            Log("ℹ️ 원인 분석: 이실장 일반 아이디는 브라우저 보안 모듈이 적용되어 있습니다. 대표님의 휴대폰 번호(010...)로 로그인하시면 즉시 연동됩니다.");
+                            Log($"보조 로그: {error.Trim()}");
                         }
                     }
                 }
-                else
+                catch (Exception procEx)
                 {
-                    Log($"❌ 이실장 서버 게이트웨이 접근 실패: HTTP {(int)getRes.StatusCode}");
+                    Log($"SSO 모듈 실행 예외: {procEx.Message}");
                 }
             }
-            catch (Exception ex)
+            else
             {
-                Log($"통신 중 예외 발생: {ex.Message}");
+                Log($"⚠️ 연동 스크립트를 찾을 수 없습니다: {scriptPath}");
             }
 
             // 4. 수집된 매물이 아직 없는 경우
