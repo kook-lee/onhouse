@@ -3204,6 +3204,17 @@ window.openLedgerFullModal = function(item) {
   }
 
   modal.style.display = 'flex';
+  const bodyEl = document.getElementById('ledger-modal-body');
+  if (bodyEl) bodyEl.scrollTop = 0;
+};
+
+window.scrollLedgerSection = function(secId) {
+  const el = document.getElementById(secId);
+  const container = document.getElementById('ledger-modal-body');
+  if (el && container) {
+    const topPos = el.offsetTop - container.offsetTop;
+    container.scrollTo({ top: Math.max(0, topPos - 10), behavior: 'smooth' });
+  }
 };
 
 window.closeLedgerFullModal = function() {
