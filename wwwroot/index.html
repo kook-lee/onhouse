@@ -164,19 +164,19 @@
           </div>
         </div>
 
-        <div id="property-list" class="property-grid">
+        <div id="property-list" class="property-grid custom-scrollbar">
           <!-- Rendered via JS -->
         </div>
 
         <!-- Danggeun Deal List (Toggle View) -->
-        <div id="danggeun-list" class="property-grid" style="display: none;">
+        <div id="danggeun-list" class="property-grid custom-scrollbar" style="display: none;">
           <!-- Rendered via JS -->
         </div>
 
         <!-- Naver Audit Hub View (Toggle View) -->
-        <div id="naver-list-wrap" style="display: none; flex-direction: column; height: 100%; gap: 12px;">
+        <div id="naver-list-wrap" style="display: none;">
           <!-- [요청 반영] 전체매물 / 정상일치 위 실시간 키워드 검색창 -->
-          <div style="position: relative; width: 100%;">
+          <div style="position: relative; width: 100%; flex-shrink: 0;">
             <input type="text" id="naver-search-input" 
                    placeholder="🔎 건물명, 동/호수, 지번, 금액, 매물번호 실시간 검색..." 
                    style="width: 100%; padding: 13px 44px 13px 46px; font-size: 16px; font-weight: 700; background: #0f172a; border: 2px solid #3b82f6; border-radius: 10px; color: #ffffff; outline: none; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25);"
@@ -186,7 +186,7 @@
           </div>
 
           <!-- Naver KPI Summary Cards (글자 및 숫자 확대) -->
-          <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;">
+          <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; flex-shrink: 0;">
             <div class="naver-kpi-btn active" onclick="filterNaverListings('all')" id="kpi-btn-all" style="cursor: pointer; background: #1e293b; padding: 10px 8px; border-radius: 8px; border: 1.5px solid #38bdf8; text-align: center;">
               <div style="font-size: 13px; font-weight: 700; color: #94a3b8;">전체 매물</div>
               <div id="kpi-naver-total" style="font-size: 20px; font-weight: 900; color: #f8fafc; margin-top: 2px;">0</div>
@@ -210,7 +210,7 @@
           </div>
 
           <!-- Progress Bar for Live Batch Audit -->
-          <div id="naver-audit-progress-wrap" style="display: none; background: #1e293b; border-radius: 6px; padding: 8px 12px; border: 1px solid #03c75a;">
+          <div id="naver-audit-progress-wrap" style="display: none; background: #1e293b; border-radius: 6px; padding: 8px 12px; border: 1px solid #03c75a; flex-shrink: 0;">
             <div style="display: flex; justify-content: space-between; font-size: 11px; color: #03c75a; font-weight: 700; margin-bottom: 4px;">
               <span id="naver-progress-label">건축물대장 실시간 전수 대조 중...</span>
               <span id="naver-progress-percent">0%</span>
@@ -221,7 +221,7 @@
           </div>
 
           <!-- Bulk Selection Subbar -->
-          <div style="display: flex; align-items: center; justify-content: space-between; background: #0f172a; padding: 6px 10px; border-radius: 6px; border: 1px solid #334155;">
+          <div style="display: flex; align-items: center; justify-content: space-between; background: #0f172a; padding: 6px 10px; border-radius: 6px; border: 1px solid #334155; flex-shrink: 0;">
             <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; cursor: pointer;">
               <input type="checkbox" id="check-naver-select-all" onchange="toggleSelectAllNaverListings(this.checked)">
               전체 선택 (<span id="naver-selected-count">0</span>개)
@@ -236,15 +236,15 @@
             </div>
           </div>
 
-          <!-- Naver Listings Container -->
-          <div id="naver-list" class="property-grid" style="overflow-y: auto; flex: 1;">
+          <!-- Naver Listings Container (대형 스크롤 슬라이더 적용) -->
+          <div id="naver-list" class="property-grid custom-scrollbar">
             <!-- Rendered via JS -->
           </div>
         </div>
       </section>
 
       <!-- 2-3. Right: Property Details & Briefing -->
-      <section class="detail-panel">
+      <section class="detail-panel custom-scrollbar">
         <div id="empty-detail" class="empty-state">
           <div class="empty-icon">👉</div>
           <p>목록에서 매물을 선택해주세요.</p>
@@ -1243,6 +1243,6 @@ https://new.land.naver.com/rooms?articleNo=2647844806"></textarea>
   </div>
 
   <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-  <script src="js/app.js?v=20260919_ledger_scroll_v6"></script>
+  <script src="js/app.js?v=20260919_left_scroll_v7"></script>
 </body>
 </html>

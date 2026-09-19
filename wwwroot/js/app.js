@@ -2933,47 +2933,74 @@ window.selectNaverListing = function(id) {
 
       return `
         <tr style="border-bottom: 1px solid #1e293b; ${rowBg}">
-          <td style="padding: 10px 14px; font-weight: 700; color: #f8fafc; font-size: 14.5px;">${escapeHtml(d.ItemName || d.itemName)}</td>
-          <td style="padding: 10px 14px; color: #cbd5e1; font-size: 14px;">${escapeHtml(d.NaverValue || d.naverValue || '-')}</td>
-          <td style="padding: 10px 14px; color: #e2e8f0; font-size: 14px; font-weight: 600;">${escapeHtml(d.LedgerValue || d.ledgerValue || '-')}</td>
-          <td style="padding: 10px 14px; font-size: 14px;">${badge}</td>
+          <td style="padding: 11px 14px; font-weight: 700; color: #f8fafc; font-size: 14.5px;">${escapeHtml(d.ItemName || d.itemName)}</td>
+          <td style="padding: 11px 14px; color: #cbd5e1; font-size: 14px;">${escapeHtml(d.NaverValue || d.naverValue || '-')}</td>
+          <td style="padding: 11px 14px; color: #e2e8f0; font-size: 14px; font-weight: 600;">${escapeHtml(d.LedgerValue || d.ledgerValue || '-')}</td>
+          <td style="padding: 11px 14px; font-size: 14px;">${badge}</td>
         </tr>
       `;
     }).join('');
   } else {
-    tbody.innerHTML = `<tr><td colspan="4" style="padding: 18px; text-align: center; color: #64748b; font-size: 14px;">아직 대장 대조가 수행되지 않았습니다.</td></tr>`;
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="4" style="padding: 24px 16px; text-align: center; color: #94a3b8; background: rgba(30, 41, 59, 0.5);">
+          <div style="font-size: 16px; font-weight: 800; color: #f8fafc; margin-bottom: 6px;">⏳ 아직 대장 전수 검증이 수행되지 않았습니다.</div>
+          <div style="font-size: 13px; color: #94a3b8; margin-bottom: 14px;">[⚡ 이 매물 대장 재검증] 버튼을 누르면 국토교통부 건축HUB에서 1초 만에 대장을 자동 조회합니다.</div>
+          <button type="button" class="btn btn-accent" onclick="auditSingleNaverListing(${item.id})" style="font-size: 13.5px; font-weight: 800; padding: 8px 18px;">
+            ⚡ 지금 1초만에 대장 대조하기
+          </button>
+        </td>
+      </tr>
+    `;
   }
 
   let raw = {};
   try { raw = JSON.parse(item.rawJson || '{}'); } catch {}
 
+  let ledgerRaw = {};
+  try { ledgerRaw = JSON.parse(item.ledgerRawJson || '{}'); } catch {}
+
+  const area1 = item.area1 ? Number(item.area1) : 0;
+  const area2 = item.area2 ? Number(item.area2) : 0;
   const naverSpecsEl = document.getElementById('naver-detail-specs');
   naverSpecsEl.innerHTML = `
-    <div><b>광고 제목:</b> ${escapeHtml(raw.title || item.articleName)}</div>
-    <div><b>층수 정보:</b> ${escapeHtml(item.floorInfo || '-')}</div>
-    <div><b>전용 면적:</b> ${item.areaM2 ? item.areaM2.toFixed(2) + '㎡' : '-'}</div>
-    <div><b>승강기/주차:</b> ${item.hasElevator ? '엘리베이터 있음 🛗' : '없음'} / ${item.totalParking}대</div>
+    <div><b>광고 제목:</b> <span style="color: #f8fafc; font-weight: 700;">${escapeHtml(raw.title || item.articleName)}</span></div>
+    <div><b>해당 층 / 전체:</b> <b style="color: #38bdf8;">${escapeHtml(item.floorInfo || '-')}</b></div>
+    <div><b>전용 면적:</b> <b style="color: #86efac;">${area2 > 0 ? area2.toFixed(2) + '㎡ (' + (area2 * 0.3025).toFixed(1) + '평)' : '-'}</b></div>
+    <div><b>공급 면적:</b> ${area1 > 0 ? area1.toFixed(2) + '㎡ (' + (area1 * 0.3025).toFixed(1) + '평)' : '-'}</div>
+    <div><b>매물 종류:</b> ${escapeHtml(item.realEstateTypeName || '아파트/원룸')} (${escapeHtml(item.tradeType || '월세')})</div>
+    <div><b>승강기 / 주차:</b> ${item.hasElevator ? '엘리베이터 있음 🛗' : '없음'} / ${item.totalParking}대</div>
     <div><b>소재지:</b> ${escapeHtml(item.address || '-')}</div>
   `;
 
   const ledgerEl = document.getElementById('naver-detail-ledger');
+  const platArea = item.platArea || Number(ledgerRaw.platArea || 0);
+  const totArea = item.totArea || Number(ledgerRaw.totArea || 0);
+  const bcRat = item.bcRat || Number(ledgerRaw.bcRat || 0);
+  const vlRat = item.vlRat || Number(ledgerRaw.vlRat || 0);
+  const bldNm = ledgerRaw.bldNm || item.articleName || '건축물대장';
+  const mainPurps = ledgerRaw.mainPurpsCdNm || '-';
+  const etcPurps = ledgerRaw.etcPurps ? ` (${ledgerRaw.etcPurps})` : '';
+  const grndFlr = ledgerRaw.grndFlrCnt !== undefined ? ledgerRaw.grndFlrCnt : (item.totalFloor || '-');
+  const ugrndFlr = ledgerRaw.ugrndFlrCnt !== undefined ? ledgerRaw.ugrndFlrCnt : '-';
+  const totalElvt = Number(ledgerRaw.rideUseElvtCnt || 0) + Number(ledgerRaw.emgenUseElvtCnt || 0) || (item.hasElevator ? 1 : 0);
+  const totalPark = Number(ledgerRaw.indrAutoUtcnt || 0) + Number(ledgerRaw.oudrAutoUtcnt || 0) + Number(ledgerRaw.indrMechUtcnt || 0) + Number(ledgerRaw.oudrMechUtcnt || 0) || item.totalParking;
+  const useApr = ledgerRaw.useAprDay ? ledgerRaw.useAprDay.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : (item.approvalDate || '-');
+  const itatYn = ledgerRaw.itgrtItatBldYn === '1' || ledgerRaw.itatBldYn === '1';
+
   let ledgerHtml = `
-    <div><b>검증 상태:</b> ${escapeHtml(item.ledgerStatus)}</div>
-    <div><b>판정 요약:</b> ${escapeHtml(item.ledgerMessage || '미검증')}</div>
+    <div><b>건물명:</b> <b style="color: #f8fafc;">${escapeHtml(bldNm)}</b> (지상 ${grndFlr}층 / 지하 ${ugrndFlr}층)</div>
+    <div><b>주용도:</b> ${escapeHtml(mainPurps)}${escapeHtml(etcPurps)}</div>
+    <div><b>대장 세대/호수:</b> 세대수 ${ledgerRaw.hhldCnt || 0}세대 / 호수 ${ledgerRaw.hoCnt || 0}호</div>
+    <div><b>대지면적:</b> <b style="color: #86efac;">${platArea > 0 ? platArea.toFixed(1) + '㎡ (' + (platArea * 0.3025).toFixed(1) + '평)' : '-'}</b></div>
+    <div><b>연면적:</b> <b style="color: #67e8f9;">${totArea > 0 ? totArea.toFixed(1) + '㎡ (' + (totArea * 0.3025).toFixed(1) + '평)' : '-'}</b></div>
+    <div><b>건폐율/용적률:</b> ${bcRat > 0 ? bcRat.toFixed(1) + '%' : '-'} / ${vlRat > 0 ? vlRat.toFixed(1) + '%' : '-'}</div>
+    <div><b>주구조:</b> ${escapeHtml(ledgerRaw.strctCdNm || item.buildingStructure || '-')}</div>
+    <div><b>승강기 / 주차:</b> 승강기 총 ${totalElvt}대 🛗 / 주차 총 ${totalPark}대</div>
+    <div><b>사용승인(준공일):</b> <span style="color: #f8fafc; font-weight: 700;">${useApr}</span></div>
+    <div><b>위반건축물 여부:</b> ${itatYn ? '<b style="color: #ef4444;">🚨 위반건축물 등재</b>' : '<b style="color: #10b981;">✅ 정상 건축물</b>'}</div>
+    <div><b>검증 시각:</b> ${item.inspectedAt ? new Date(item.inspectedAt).toLocaleString() : '미검증'}</div>
   `;
-  if (item.platArea > 0) {
-    ledgerHtml += `<div><b>대지면적:</b> <b style="color: #86efac;">${item.platArea.toFixed(1)}㎡ (${(item.platArea * 0.3025).toFixed(1)}평)</b></div>`;
-  }
-  if (item.totArea > 0) {
-    ledgerHtml += `<div><b>연면적:</b> ${item.totArea.toFixed(1)}㎡ (${(item.totArea * 0.3025).toFixed(1)}평)</div>`;
-  }
-  if (item.bcRat > 0 || item.vlRat > 0) {
-    ledgerHtml += `<div><b>건폐율/용적률:</b> ${item.bcRat ? item.bcRat.toFixed(1) + '%' : '-'} / ${item.vlRat ? item.vlRat.toFixed(1) + '%' : '-'}</div>`;
-  }
-  if (item.buildingStructure) {
-    ledgerHtml += `<div><b>건물 주구조:</b> ${escapeHtml(item.buildingStructure)}</div>`;
-  }
-  ledgerHtml += `<div><b>검증 시각:</b> ${item.inspectedAt ? new Date(item.inspectedAt).toLocaleString() : '미수행'}</div>`;
   ledgerEl.innerHTML = ledgerHtml;
 
   document.getElementById('btn-naver-audit-single').onclick = () => auditSingleNaverListing(item.id);

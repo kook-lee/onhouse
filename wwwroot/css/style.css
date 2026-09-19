@@ -389,16 +389,64 @@ body {
   overflow: hidden;
   gap: 16px;
   padding: 16px;
+  min-height: 0;
+  height: calc(100vh - 110px);
 }
 
 /* Common Panels */
-.filter-panel, .list-panel, .detail-panel {
+.filter-panel {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 16px;
   overflow-y: auto;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.list-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  min-height: 0 !important;
+  height: 100% !important;
+}
+
+.detail-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  overflow-y: auto !important;
+  min-height: 0 !important;
+  height: 100% !important;
+}
+
+/* 좌측 매물 목록 및 네이버 래퍼 스크롤 완전 분리 */
+#naver-list-wrap {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  height: 100% !important;
+  gap: 10px !important;
+}
+
+#naver-list, #property-list, #danggeun-list {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  padding-right: 8px !important;
 }
 
 .panel-header {
@@ -580,6 +628,7 @@ label {
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  flex-shrink: 0 !important;
 }
 
 .property-card:hover {
