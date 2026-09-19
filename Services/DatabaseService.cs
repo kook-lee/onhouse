@@ -138,6 +138,16 @@ namespace OnHouseLocal.Services
                     LedgerDiscrepanciesJson TEXT DEFAULT '',
                     InspectedAt DATETIME,
                     IsImported INTEGER DEFAULT 0,
+                    PlatArea REAL DEFAULT 0,
+                    ArchArea REAL DEFAULT 0,
+                    TotArea REAL DEFAULT 0,
+                    BcRat REAL DEFAULT 0,
+                    VlRat REAL DEFAULT 0,
+                    BuildingStructure TEXT DEFAULT '',
+                    PublicPrice INTEGER DEFAULT 0,
+                    PublicPriceYear TEXT DEFAULT '',
+                    HugGuaranteeLimit INTEGER DEFAULT 0,
+                    LedgerRawJson TEXT DEFAULT '',
                     CreatedAt DATETIME NOT NULL
                 );
 
@@ -173,6 +183,18 @@ namespace OnHouseLocal.Services
             try { await connection.ExecuteAsync("ALTER TABLE Properties ADD COLUMN ImageUrl TEXT DEFAULT '';"); } catch { }
             try { await connection.ExecuteAsync("ALTER TABLE Properties ADD COLUMN UserId INTEGER DEFAULT 1;"); } catch { }
             try { await connection.ExecuteAsync("ALTER TABLE CrawledDeals ADD COLUMN ImageUrl TEXT DEFAULT '';"); } catch { }
+
+            // NaverListings 신규 스펙 컬럼 마이그레이션
+            try { await connection.ExecuteAsync("ALTER TABLE NaverListings ADD COLUMN PlatArea REAL DEFAULT 0;"); } catch { }
+            try { await connection.ExecuteAsync("ALTER TABLE NaverListings ADD COLUMN ArchArea REAL DEFAULT 0;"); } catch { }
+            try { await connection.ExecuteAsync("ALTER TABLE NaverListings ADD COLUMN TotArea REAL DEFAULT 0;"); } catch { }
+            try { await connection.ExecuteAsync("ALTER TABLE NaverListings ADD COLUMN BcRat REAL DEFAULT 0;"); } catch { }
+            try { await connection.ExecuteAsync("ALTER TABLE NaverListings ADD COLUMN VlRat REAL DEFAULT 0;"); } catch { }
+            try { await connection.ExecuteAsync("ALTER TABLE NaverListings ADD COLUMN BuildingStructure TEXT DEFAULT '';"); } catch { }
+            try { await connection.ExecuteAsync("ALTER TABLE NaverListings ADD COLUMN PublicPrice INTEGER DEFAULT 0;"); } catch { }
+            try { await connection.ExecuteAsync("ALTER TABLE NaverListings ADD COLUMN PublicPriceYear TEXT DEFAULT '';"); } catch { }
+            try { await connection.ExecuteAsync("ALTER TABLE NaverListings ADD COLUMN HugGuaranteeLimit INTEGER DEFAULT 0;"); } catch { }
+            try { await connection.ExecuteAsync("ALTER TABLE NaverListings ADD COLUMN LedgerRawJson TEXT DEFAULT '';"); } catch { }
         }
 
         // --- 사용자 계정 관리 ---
@@ -524,7 +546,21 @@ namespace OnHouseLocal.Services
             }
         }
 
-        public async Task<bool> UpdateNaverListingLedgerResultAsync(int id, string ledgerStatus, string ledgerMessage, string discrepanciesJson)
+        public async Task<bool> UpdateNaverListingLedgerResultAsync(
+            int id, 
+            string ledgerStatus, 
+            string ledgerMessage, 
+            string discrepanciesJson,
+            double platArea = 0,
+            double archArea = 0,
+            double totArea = 0,
+            double bcRat = 0,
+            double vlRat = 0,
+            string buildingStructure = "",
+            long publicPrice = 0,
+            string publicPriceYear = "",
+            long hugGuaranteeLimit = 0,
+            string ledgerRawJson = "")
         {
             using var connection = new SqliteConnection(ConnectionString);
             string sql = @"
@@ -532,6 +568,16 @@ namespace OnHouseLocal.Services
                     LedgerStatus = @LedgerStatus,
                     LedgerMessage = @LedgerMessage,
                     LedgerDiscrepanciesJson = @LedgerDiscrepanciesJson,
+                    PlatArea = CASE WHEN @PlatArea > 0 THEN @PlatArea ELSE PlatArea END,
+                    ArchArea = CASE WHEN @ArchArea > 0 THEN @ArchArea ELSE ArchArea END,
+                    TotArea = CASE WHEN @TotArea > 0 THEN @TotArea ELSE TotArea END,
+                    BcRat = CASE WHEN @BcRat > 0 THEN @BcRat ELSE BcRat END,
+                    VlRat = CASE WHEN @VlRat > 0 THEN @VlRat ELSE VlRat END,
+                    BuildingStructure = CASE WHEN @BuildingStructure != '' THEN @BuildingStructure ELSE BuildingStructure END,
+                    PublicPrice = CASE WHEN @PublicPrice > 0 THEN @PublicPrice ELSE PublicPrice END,
+                    PublicPriceYear = CASE WHEN @PublicPriceYear != '' THEN @PublicPriceYear ELSE PublicPriceYear END,
+                    HugGuaranteeLimit = CASE WHEN @HugGuaranteeLimit > 0 THEN @HugGuaranteeLimit ELSE HugGuaranteeLimit END,
+                    LedgerRawJson = CASE WHEN @LedgerRawJson != '' THEN @LedgerRawJson ELSE LedgerRawJson END,
                     InspectedAt = @InspectedAt
                 WHERE Id = @Id;";
             int affected = await connection.ExecuteAsync(sql, new
@@ -540,6 +586,16 @@ namespace OnHouseLocal.Services
                 LedgerStatus = ledgerStatus,
                 LedgerMessage = ledgerMessage,
                 LedgerDiscrepanciesJson = discrepanciesJson,
+                PlatArea = platArea,
+                ArchArea = archArea,
+                TotArea = totArea,
+                BcRat = bcRat,
+                VlRat = vlRat,
+                BuildingStructure = buildingStructure,
+                PublicPrice = publicPrice,
+                PublicPriceYear = publicPriceYear,
+                HugGuaranteeLimit = hugGuaranteeLimit,
+                LedgerRawJson = ledgerRawJson,
                 InspectedAt = DateTime.Now
             });
             return affected > 0;

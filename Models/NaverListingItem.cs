@@ -24,6 +24,20 @@ namespace OnHouseLocal.Models
         public DateTime? InspectedAt { get; set; }
         public bool IsImported { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+        // [신규] 건축물대장 정밀 스펙 & VWorld 공동주택 공시가격 & HUG 안심전세 126%
+        public double PlatArea { get; set; } // 대지면적 (㎡)
+        public double ArchArea { get; set; } // 건축면적 (㎡)
+        public double TotArea { get; set; }  // 연면적 (㎡)
+        public double BcRat { get; set; }    // 건폐율 (%)
+        public double VlRat { get; set; }    // 용적률 (%)
+        public double PlatAreaPyung => Math.Round(PlatArea * 0.3025, 1);
+        public double TotAreaPyung => Math.Round(TotArea * 0.3025, 1);
+        public string BuildingStructure { get; set; } = ""; // 주구조
+        public long PublicPrice { get; set; } // 공시가격 (원)
+        public string PublicPriceYear { get; set; } = ""; // 공시연도 (예: 2024)
+        public long HugGuaranteeLimit { get; set; } // HUG 안심전세 126% 보증보험 한도 (원)
+        public string LedgerRawJson { get; set; } = ""; // 건축물대장 표제부 원본 JSON
     }
 
     public class RealtorSettingsItem

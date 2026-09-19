@@ -182,6 +182,7 @@ try
     builder.Services.AddSingleton<CrawlerService>();
     builder.Services.AddSingleton<FakeListingDetector>();
     builder.Services.AddSingleton<BuildingLedgerService>();
+    builder.Services.AddSingleton<VWorldHousingPriceService>();
     builder.Services.AddSingleton<NaverLandService>();
     builder.Services.AddSingleton<AiPartnerService>();
 
@@ -308,15 +309,31 @@ try
         return Results.Ok(audit);
     });
 
-    // --- 네이버 매물 URL 검증 및 건축물대장 대조 API ---
-    app.MapPost("/api/naver/inspect", async (NaverInspectRequest req, NaverLandService naverService, BuildingLedgerService ledgerService) =>
+    // --- 네이버 매물 URL 검증 및 건축물대장 / 공시가격 대조 API ---
+    app.MapPost("/api/naver/inspect", async (NaverInspectRequest req, NaverLandService naverService, BuildingLedgerService ledgerService, VWorldHousingPriceService vworldService) =>
     {
         if (req == null || string.IsNullOrWhiteSpace(req.Url))
         {
             return Results.BadRequest(new { message = "네이버 매물 URL 또는 매물번호를 입력해주세요." });
         }
-        var result = await naverService.InspectAndCompareAsync(req.Url, ledgerService);
+        var result = await naverService.InspectAndCompareAsync(req.Url, ledgerService, vworldService);
         return Results.Ok(result);
+    });
+
+    // --- VWorld 공동주택 공시가격 & HUG 126% 산출 API ---
+    app.MapGet("/api/vworld/housing-price", async (string? pnu, string? address, string? dong, string? ho, double? area, VWorldHousingPriceService vworldService) =>
+    {
+        if (!string.IsNullOrEmpty(pnu))
+        {
+            var res = await vworldService.QueryApartmentPriceAsync(pnu, dong ?? "", ho ?? "", area ?? 0);
+            return Results.Ok(res);
+        }
+        else if (!string.IsNullOrEmpty(address))
+        {
+            var res = await vworldService.QueryApartmentPriceByAddressAsync(address, dong ?? "", ho ?? "", area ?? 0);
+            return Results.Ok(res);
+        }
+        return Results.BadRequest(new { message = "pnu 또는 address 파라미터가 필요합니다." });
     });
 
 
@@ -678,15 +695,15 @@ try
         });
     });
 
-    // 4. 단일 매물 대장 검증 실행
-    app.MapPost("/api/naver/listings/audit/{id:int}", async (int id, NaverLandService naverService, BuildingLedgerService ledgerService, DatabaseService db) =>
+    // 4. 단일 매물 대장 & 공시가격 검증 실행
+    app.MapPost("/api/naver/listings/audit/{id:int}", async (int id, NaverLandService naverService, BuildingLedgerService ledgerService, VWorldHousingPriceService vworldService, DatabaseService db) =>
     {
-        var res = await naverService.AuditListingAsync(id, ledgerService, db);
+        var res = await naverService.AuditListingAsync(id, ledgerService, db, vworldService);
         return Results.Ok(res);
     });
 
     // 5. 전체/미검증 매물 일괄 대장 전수 검증
-    app.MapPost("/api/naver/listings/audit-all", async (int? userId, bool? forceAll, NaverLandService naverService, BuildingLedgerService ledgerService, DatabaseService db) =>
+    app.MapPost("/api/naver/listings/audit-all", async (int? userId, bool? forceAll, NaverLandService naverService, BuildingLedgerService ledgerService, VWorldHousingPriceService vworldService, DatabaseService db) =>
     {
         int uId = userId ?? 1;
         bool recheckAll = forceAll ?? false;
@@ -705,7 +722,7 @@ try
 
         foreach (var item in targetList)
         {
-            var res = await naverService.AuditListingAsync(item.Id, ledgerService, db);
+            var res = await naverService.AuditListingAsync(item.Id, ledgerService, db, vworldService);
             audited++;
             if (res.OverallStatus == "Safe") safeCount++;
             else if (res.OverallStatus == "Warning") warningCount++;

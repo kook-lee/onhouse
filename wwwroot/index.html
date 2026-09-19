@@ -440,6 +440,27 @@
           <div id="naver-detail-title" class="detail-title" style="font-size: 1.15rem; margin-bottom: 4px;"></div>
           <div id="naver-detail-price" class="detail-price" style="font-size: 1.25rem; margin-bottom: 14px;"></div>
 
+          <!-- 🏢 공동주택 공시가격 & 🛡️ HUG 안심전세 126% 보증보험 진단 위젯 -->
+          <div id="naver-housing-price-card" style="display: none; background: linear-gradient(135deg, #0f2b1d 0%, #1e293b 100%); border: 1px solid #059669; border-radius: 8px; padding: 12px 14px; margin-bottom: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid rgba(5, 150, 105, 0.3); padding-bottom: 6px;">
+              <span style="font-size: 12px; font-weight: 800; color: #34d399; display: flex; align-items: center; gap: 6px;">
+                <span>🏢</span> 공동주택 공시가격 & HUG 안심전세
+              </span>
+              <span id="naver-public-price-year-badge" class="badge" style="background: #065f46; color: #a7f3d0; font-size: 10px;"></span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; margin-bottom: 8px;">
+              <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 10px; border-radius: 6px;">
+                <div style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">공동주택 공시가격</div>
+                <div id="naver-public-price-display" style="font-size: 14px; font-weight: 800; color: #f8fafc;">-</div>
+              </div>
+              <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 10px; border-radius: 6px;">
+                <div style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">🛡️ HUG 126% 한도</div>
+                <div id="naver-hug-limit-display" style="font-size: 14px; font-weight: 800; color: #38bdf8;">-</div>
+              </div>
+            </div>
+            <div id="naver-hug-status-box" style="font-size: 11px; padding: 6px 10px; border-radius: 6px; font-weight: 600;"></div>
+          </div>
+
           <!-- 실시간 종합 대조 배너 -->
           <div id="naver-detail-banner" style="padding: 12px 14px; border-radius: 8px; margin-bottom: 14px; font-weight: 700; font-size: 13px;"></div>
 
@@ -478,6 +499,9 @@
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button id="btn-naver-audit-single" class="btn btn-accent" style="flex: 1; padding: 10px; font-weight: 700; font-size: 13px;">
               ⚡ 이 매물 대장 재검증
+            </button>
+            <button id="btn-naver-view-ledger-modal" type="button" class="btn btn-outline" onclick="openCurrentListingLedgerModal()" style="border-color: #6366f1; color: #a5b4fc; font-weight: 700; font-size: 12px; padding: 10px 14px; display: flex; align-items: center; gap: 4px;">
+              🏛️ 대장 전체보기
             </button>
             <button id="btn-naver-import-prop" class="btn btn-primary" style="flex: 1; padding: 10px; font-weight: 700; font-size: 13px; background: #03c75a; border-color: #03c75a;">
               📥 내 장부로 저장
@@ -1131,7 +1155,100 @@ https://new.land.naver.com/rooms?articleNo=2647844806"></textarea>
     </div>
   </div>
 
+  <!-- 5. 건축물대장 전산 원본 전체보기 모달 (Modal) -->
+  <div id="modal-ledger-full" class="modal-overlay" style="display: none; z-index: 100000; align-items: center; justify-content: center;">
+    <div class="modal-card" style="width: 92%; max-width: 880px; max-height: 88vh; display: flex; flex-direction: column; background: #0f172a; border: 1px solid #334155; border-radius: 12px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85);">
+      <div class="modal-header" style="background: #1e293b; padding: 14px 20px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 22px;">🏛️</span>
+          <div>
+            <h3 id="ledger-modal-title" style="margin: 0; font-size: 16px; color: #f8fafc; font-weight: 800;">국토교통부 건축물대장 표제부 전산 원본</h3>
+            <div id="ledger-modal-sub" style="font-size: 12px; color: #94a3b8; margin-top: 2px;">정부24 / 국토교통부 건축행정시스템(세움터) 실시간 연동</div>
+          </div>
+        </div>
+        <button type="button" class="btn-close" onclick="closeLedgerFullModal()" style="font-size: 24px; color: #94a3b8; background: none; border: none; cursor: pointer;">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 18px 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 16px;">
+        <!-- 상단 핵심 스펙 뱃지 바 -->
+        <div id="ledger-modal-badge-bar" style="display: flex; gap: 8px; flex-wrap: wrap; background: #141f31; padding: 10px 14px; border-radius: 8px; border: 1px solid #1e3a8a;">
+          <!-- JS에서 동적 삽입 -->
+        </div>
+
+        <!-- 1. 기본 및 소재지 정보 -->
+        <div style="border: 1px solid #334155; border-radius: 8px; overflow: hidden;">
+          <div style="background: #1e293b; padding: 8px 14px; font-weight: 700; font-size: 13px; color: #93c5fd; display: flex; align-items: center; gap: 6px;">
+            <span>📍</span> 1. 기본 사항 및 소재지
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <tbody id="ledger-table-basic" style="background: #0b1120;"></tbody>
+          </table>
+        </div>
+
+        <!-- 2. 대지면적, 건축면적, 연면적 및 건폐율/용적률 -->
+        <div style="border: 1px solid #334155; border-radius: 8px; overflow: hidden;">
+          <div style="background: #1e293b; padding: 8px 14px; font-weight: 700; font-size: 13px; color: #86efac; display: flex; align-items: center; gap: 6px;">
+            <span>📐</span> 2. 대지면적 및 건축 규모 (표제부 법정 기준)
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <tbody id="ledger-table-area" style="background: #0b1120;"></tbody>
+          </table>
+        </div>
+
+        <!-- 3. 주구조, 지붕, 높이 및 설비 (승강기/주차대수) -->
+        <div style="border: 1px solid #334155; border-radius: 8px; overflow: hidden;">
+          <div style="background: #1e293b; padding: 8px 14px; font-weight: 700; font-size: 13px; color: #fde047; display: flex; align-items: center; gap: 6px;">
+            <span>🏗️</span> 3. 건축물 주구조 및 주차/승강기 설비
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <tbody id="ledger-table-structure" style="background: #0b1120;"></tbody>
+          </table>
+        </div>
+
+        <!-- 4. 인허가 및 위반건축물 여부 -->
+        <div style="border: 1px solid #334155; border-radius: 8px; overflow: hidden;">
+          <div style="background: #1e293b; padding: 8px 14px; font-weight: 700; font-size: 13px; color: #fca5a5; display: flex; align-items: center; gap: 6px;">
+            <span>⚖️</span> 4. 행정 처분 (위반건축물) 및 인허가 일자
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <tbody id="ledger-table-admin" style="background: #0b1120;"></tbody>
+          </table>
+        </div>
+
+        <!-- 5. VWorld 공동주택 공시가격 & HUG 안심전세 126% 정밀 분석 -->
+        <div style="border: 1px solid #059669; border-radius: 8px; overflow: hidden; background: #064e3b15;">
+          <div style="background: #064e3b; padding: 8px 14px; font-weight: 700; font-size: 13px; color: #6ee7b7; display: flex; justify-content: space-between; align-items: center;">
+            <span style="display: flex; align-items: center; gap: 6px;">
+              <span>🛡️</span> 5. 국토교통부 공동주택 공시가격 & HUG 안심전세 126% 보증보험
+            </span>
+            <span style="font-size: 11px; color: #a7f3d0; font-weight: normal;">공시가 × 140% × 90% = 공시가 × 126%</span>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <tbody id="ledger-table-price" style="background: #0b1120;"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="background: #1e293b; padding: 12px 20px; border-top: 1px solid #334155; display: flex; justify-content: space-between; align-items: center;">
+        <div style="font-size: 11px; color: #64748b;">
+          * 국토교통부 건축HUB 및 VWorld 개방데이터 기반 실시간 전산 조회본입니다.
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-secondary" onclick="copyLedgerModalSummary()" style="font-size: 12px; font-weight: 600; padding: 8px 14px;">
+            📋 대장 요약 복사
+          </button>
+          <button type="button" class="btn btn-primary" onclick="printLedgerModal()" style="font-size: 12px; font-weight: 700; padding: 8px 16px; background: #2563eb; border-color: #2563eb;">
+            🖨️ 대장 인쇄 / PDF 출력
+          </button>
+          <button type="button" class="btn btn-outline" onclick="closeLedgerFullModal()" style="font-size: 12px; padding: 8px 14px; border-color: #475569; color: #cbd5e1;">
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-  <script src="js/app.js?v=20260917_aipartner"></script>
+  <script src="js/app.js?v=20260919_vworld"></script>
 </body>
 </html>

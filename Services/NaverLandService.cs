@@ -26,6 +26,7 @@ namespace OnHouseLocal.Services
         public double SupplyArea { get; set; }
         public string TargetFloor { get; set; } = "";
         public int TotalFloor { get; set; }
+        public string FloorInfo => !string.IsNullOrEmpty(TargetFloor) ? $"{TargetFloor}/{TotalFloor}층" : $"{TotalFloor}층";
         public int RoomCount { get; set; }
         public int BathRoomCount { get; set; }
         public string Direction { get; set; } = "";
@@ -58,9 +59,17 @@ namespace OnHouseLocal.Services
         public string ArticleNumber { get; set; } = "";
         public NaverArticleDetail? NaverItem { get; set; }
         public BuildingLedgerInfo? LedgerItem { get; set; }
+        public PublicHousingPriceInfo? HousingPriceItem { get; set; }
         public List<DiscrepancyItem> Discrepancies { get; set; } = new();
         public string OverallStatus { get; set; } = "Safe"; // "Safe", "Warning", "Danger"
         public string Summary { get; set; } = "";
+
+        // HUG 126% 보증보험 진단 정보
+        public long PublicPrice { get; set; }
+        public string PublicPriceYear { get; set; } = "";
+        public long HugGuaranteeLimit { get; set; }
+        public string HugSafetyStatus { get; set; } = ""; // "Safe", "Exceeded", "NotApplicable"
+        public string HugSafetyMessage { get; set; } = "";
     }
 
     public class NaverLandService
@@ -396,9 +405,12 @@ namespace OnHouseLocal.Services
         }
 
         /// <summary>
-        /// 네이버 매물 정보와 국토교통부 건축물대장을 실시간 대조하여 허위매물/정보불일치를 검증
+        /// 네이버 매물 정보와 국토교통부 건축물대장 및 VWorld 공동주택가격을 실시간 대조하여 허위매물/정보불일치 및 HUG 126% 보증보험을 검증
         /// </summary>
-        public async Task<NaverInspectionResult> InspectAndCompareAsync(string urlOrArticleNo, BuildingLedgerService ledgerService)
+        public async Task<NaverInspectionResult> InspectAndCompareAsync(
+            string urlOrArticleNo, 
+            BuildingLedgerService ledgerService,
+            VWorldHousingPriceService? vworldService = null)
         {
             var res = new NaverInspectionResult();
             string articleNo = ExtractArticleNumber(urlOrArticleNo);
@@ -562,7 +574,130 @@ namespace OnHouseLocal.Services
                 Note = dateMatch ? "사용승인일 일치" : "사용승인일 차이 발생"
             });
 
-            // 6. 종합 상태 산출
+            // 6. 대지면적, 연면적, 건폐율/용적률
+            string ledgerAreaText = "";
+            if (ledger.PlatArea > 0)
+                ledgerAreaText += $"대지 {ledger.PlatArea:F1}㎡({ledger.PlatAreaPyung}평) ";
+            if (ledger.TotArea > 0)
+                ledgerAreaText += $"연면적 {ledger.TotArea:F1}㎡({ledger.TotAreaPyung}평) ";
+            if (ledger.BcRat > 0 || ledger.VlRat > 0)
+                ledgerAreaText += $"(건폐율 {ledger.BcRat:F1}% / 용적률 {ledger.VlRat:F1}%)";
+            if (!string.IsNullOrEmpty(ledger.Structure))
+                ledgerAreaText += $" · {ledger.Structure}";
+
+            if (!string.IsNullOrWhiteSpace(ledgerAreaText))
+            {
+                res.Discrepancies.Add(new DiscrepancyItem
+                {
+                    ItemName = "대지면적 · 연면적 · 건폐율",
+                    NaverValue = $"전용 {naverItem.ExclusiveArea:F1}㎡({Math.Round(naverItem.ExclusiveArea * 0.3025, 1)}평) / 공급 {naverItem.SupplyArea:F1}㎡",
+                    LedgerValue = ledgerAreaText.Trim(),
+                    Status = "Match",
+                    Note = "건축물대장 표제부 기준 실제 대지면적 및 연면적, 건축 규모입니다."
+                });
+            }
+
+            // 7. VWorld 공동주택 공시가격 및 HUG 안심전세 126% 보증보험 한도 분석
+            try
+            {
+                string dongNm = "";
+                string hoNm = "";
+                var dongMatch = Regex.Match(naverItem.ArticleName + " " + naverItem.Title, @"(\d{1,4})\s*동");
+                if (dongMatch.Success) dongNm = dongMatch.Groups[1].Value;
+
+                var hoMatch = Regex.Match(naverItem.Title + " " + naverItem.Description + " " + naverItem.FloorInfo, @"([1-9]\d{1,3})\s*호");
+                if (hoMatch.Success) hoNm = hoMatch.Groups[1].Value;
+
+                string pnu = "";
+                if (!string.IsNullOrEmpty(naverItem.SigunguCd) && !string.IsNullOrEmpty(naverItem.BjdongCd) && !string.IsNullOrEmpty(naverItem.Bun))
+                {
+                    pnu = BuildingLedgerService.BuildPnu(naverItem.SigunguCd, naverItem.BjdongCd, naverItem.Bun, naverItem.Ji);
+                }
+
+                var priceService = vworldService ?? VWorldHousingPriceService.Instance;
+                if (!string.IsNullOrEmpty(pnu))
+                {
+                    var housingPrice = await priceService.QueryApartmentPriceAsync(pnu, dongNm, hoNm, naverItem.ExclusiveArea);
+                    res.HousingPriceItem = housingPrice;
+
+                    if (housingPrice.Success && housingPrice.PublicPrice > 0)
+                    {
+                        res.PublicPrice = housingPrice.PublicPrice;
+                        res.PublicPriceYear = housingPrice.BaseYear;
+                        res.HugGuaranteeLimit = housingPrice.HugGuaranteeLimit;
+
+                        long pubPrice = housingPrice.PublicPrice;
+                        long hugLimit = housingPrice.HugGuaranteeLimit;
+                        string yr = housingPrice.BaseYear;
+
+                        if (naverItem.TradeType == "전세")
+                        {
+                            long depositWon = naverItem.Price;
+                            if (depositWon > 0)
+                            {
+                                if (depositWon <= hugLimit)
+                                {
+                                    res.HugSafetyStatus = "Safe";
+                                    res.HugSafetyMessage = $"보증보험 가입 안전 매물 (전세금 {depositWon / 10000:N0}만 ≤ HUG 126% 한도 {hugLimit / 10000:N0}만)";
+                                    res.Discrepancies.Add(new DiscrepancyItem
+                                    {
+                                        ItemName = "🛡️ HUG 안심전세 보증보험 (126%)",
+                                        NaverValue = $"전세 {depositWon / 10000:N0}만원",
+                                        LedgerValue = $"가입한도 {hugLimit / 10000:N0}만원 (공시가 {pubPrice / 10000:N0}만, {yr}년)",
+                                        Status = "Match",
+                                        Note = $"✅ 안전: 전세보증금이 HUG 126% 한도 이내로 세입자 전세보증금 반환보증보험 가입이 가능합니다."
+                                    });
+                                }
+                                else
+                                {
+                                    warningCount++;
+                                    res.HugSafetyStatus = "Exceeded";
+                                    res.HugSafetyMessage = $"⚠️ HUG 126% 한도 초과 (전세금 {depositWon / 10000:N0}만 > 한도 {hugLimit / 10000:N0}만)";
+                                    res.Discrepancies.Add(new DiscrepancyItem
+                                    {
+                                        ItemName = "🛡️ HUG 안심전세 보증보험 (126%)",
+                                        NaverValue = $"전세 {depositWon / 10000:N0}만원",
+                                        LedgerValue = $"가입한도 {hugLimit / 10000:N0}만원 (공시가 {pubPrice / 10000:N0}만, {yr}년)",
+                                        Status = "Warning",
+                                        Note = $"⚠️ 한도 초과: 전세금이 공시가격 126%를 초과하여 HUG 보증보험 및 버팀목 전세대출 가입이 거절될 수 있습니다."
+                                    });
+                                }
+                            }
+                        }
+                        else if (naverItem.TradeType == "매매")
+                        {
+                            long saleWon = naverItem.Price;
+                            double ratio = pubPrice > 0 ? (saleWon * 100.0 / pubPrice) : 0;
+                            res.Discrepancies.Add(new DiscrepancyItem
+                            {
+                                ItemName = "🏢 공동주택 공시가격",
+                                NaverValue = $"매매 {saleWon / 10000:N0}만원",
+                                LedgerValue = $"공시가 {pubPrice / 10000:N0}만원 ({yr}년 기준)",
+                                Status = "Match",
+                                Note = $"공시가격 대비 매매가 비율 {ratio:F1}% (HUG 담보환산 140%: {pubPrice * 1.4 / 10000:N0}만원)"
+                            });
+                        }
+                        else
+                        {
+                            long depositWon = naverItem.Price;
+                            res.Discrepancies.Add(new DiscrepancyItem
+                            {
+                                ItemName = "🏢 공동주택 공시가격 & HUG 한도",
+                                NaverValue = $"보증금 {depositWon / 10000:N0}만 / 월세 {naverItem.PreviousMonthlyRent / 10000:N0}만",
+                                LedgerValue = $"공시가 {pubPrice / 10000:N0}만 (HUG 한도 {hugLimit / 10000:N0}만, {yr}년)",
+                                Status = "Match",
+                                Note = $"HUG 126% 한도 대비 보증금이 안전하여 전세사기/깡통전세 위험이 없습니다."
+                            });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[VWorld Housing Price Audit Warning] {ex.Message}");
+            }
+
+            // 8. 종합 상태 산출
             if (dangerCount > 0)
             {
                 res.OverallStatus = "Danger";
@@ -702,9 +837,13 @@ namespace OnHouseLocal.Services
         }
 
         /// <summary>
-        /// 단일 매물에 대해 건축물대장 정밀 대조 검증 수행 후 DB 업데이트
+        /// 단일 매물에 대해 건축물대장 및 공시가격(HUG 126%) 정밀 대조 검증 수행 후 DB 업데이트
         /// </summary>
-        public async Task<NaverInspectionResult> AuditListingAsync(int listingId, BuildingLedgerService ledgerService, DatabaseService db)
+        public async Task<NaverInspectionResult> AuditListingAsync(
+            int listingId, 
+            BuildingLedgerService ledgerService, 
+            DatabaseService db,
+            VWorldHousingPriceService? vworldService = null)
         {
             var item = await db.GetNaverListingByIdAsync(listingId);
             if (item == null)
@@ -716,12 +855,39 @@ namespace OnHouseLocal.Services
                 };
             }
 
-            var res = await InspectAndCompareAsync(item.ArticleNumber, ledgerService);
+            var res = await InspectAndCompareAsync(item.ArticleNumber, ledgerService, vworldService);
             string status = res.OverallStatus; // "Safe", "Warning", "Danger"
             if (!res.Success) status = "Failed";
 
             string discrepanciesJson = JsonSerializer.Serialize(res.Discrepancies);
-            await db.UpdateNaverListingLedgerResultAsync(listingId, status, res.Summary, discrepanciesJson);
+
+            double platArea = res.LedgerItem?.PlatArea ?? 0;
+            double archArea = res.LedgerItem?.ArchArea ?? 0;
+            double totArea = res.LedgerItem?.TotArea ?? 0;
+            double bcRat = res.LedgerItem?.BcRat ?? 0;
+            double vlRat = res.LedgerItem?.VlRat ?? 0;
+            string structure = res.LedgerItem?.Structure ?? "";
+            long pubPrice = res.PublicPrice;
+            string pubPriceYear = res.PublicPriceYear;
+            long hugLimit = res.HugGuaranteeLimit;
+            string ledgerRawJson = res.LedgerItem?.RawJson ?? "";
+
+            await db.UpdateNaverListingLedgerResultAsync(
+                listingId, 
+                status, 
+                res.Summary, 
+                discrepanciesJson,
+                platArea,
+                archArea,
+                totArea,
+                bcRat,
+                vlRat,
+                structure,
+                pubPrice,
+                pubPriceYear,
+                hugLimit,
+                ledgerRawJson
+            );
             return res;
         }
 

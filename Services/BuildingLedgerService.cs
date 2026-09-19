@@ -15,16 +15,51 @@ namespace OnHouseLocal.Services
         public string Message { get; set; } = string.Empty;
         public string BuildingName { get; set; } = string.Empty;
         public string PlatAddress { get; set; } = string.Empty;
+        public string NewPlatAddress { get; set; } = string.Empty;
+        public string DongName { get; set; } = string.Empty;
+        public string RegstrGbCdNm { get; set; } = string.Empty; // 일반 / 집합
         public string MainPurps { get; set; } = string.Empty;
+        public string EtcPurps { get; set; } = string.Empty;
+
+        // 면적 및 규모 (대지면적, 연면적, 건축면적, 건폐율, 용적률)
+        public double PlatArea { get; set; } // 대지면적 (㎡)
+        public double ArchArea { get; set; } // 건축면적 (㎡)
+        public double TotArea { get; set; }  // 연면적 (㎡)
+        public double BcRat { get; set; }    // 건폐율 (%)
+        public double VlRat { get; set; }    // 용적률 (%)
+        public double PlatAreaPyung => Math.Round(PlatArea * 0.3025, 1);
+        public double ArchAreaPyung => Math.Round(ArchArea * 0.3025, 1);
+        public double TotAreaPyung => Math.Round(TotArea * 0.3025, 1);
+
+        // 구조 및 높이
+        public string Structure { get; set; } = string.Empty; // 주구조
+        public string Roof { get; set; } = string.Empty;      // 지붕
+        public double Height { get; set; }                    // 높이 (m)
         public int GrndFlrCnt { get; set; } // 지상 층수
         public int UgrndFlrCnt { get; set; } // 지하 층수
+        public int HouseholdCount { get; set; } // 세대수
+        public int FamilyCount { get; set; }    // 가구수
+        public int HoCount { get; set; }        // 호수
+
+        // 승강기 및 주차
         public int RideUseElvtCnt { get; set; } // 승용 승강기
         public int EmgenUseElvtCnt { get; set; } // 비상 승강기
         public int TotalElevatorCount => RideUseElvtCnt + EmgenUseElvtCnt;
         public bool HasElevator => TotalElevatorCount > 0;
         public int TotalParking { get; set; }
+        public int IndrAutoUtcnt { get; set; }
+        public int OudrAutoUtcnt { get; set; }
+        public int IndrMechUtcnt { get; set; }
+        public int OudrMechUtcnt { get; set; }
+
+        // 사용승인일 및 위반건축물
+        public string PmsDay { get; set; } = string.Empty;        // 허가일
+        public string StcnsDay { get; set; } = string.Empty;      // 착공일
+        public string UseApprovalDate { get; set; } = string.Empty; // 사용승인일
         public bool IsViolatingBuilding { get; set; } // 위반건축물 여부
-        public string UseApprovalDate { get; set; } = string.Empty;
+
+        // 원본 전산 데이터
+        public string RawJson { get; set; } = string.Empty;
     }
 
     public class SafetyIssueItem
@@ -51,7 +86,7 @@ namespace OnHouseLocal.Services
         private const string ServiceKey = "eQw9WYxqNsJrhAqVJR7FVYNBiE66u0qD6p6RS7Zk%2F3OJJ%2B6q44VHlTn2u2hpYl52nFQeGpiYPHNsDQc9t9P0OQ%3D%3D";
 
         // 서울 전 자치구 시군구코드 (5자리)
-        private static readonly Dictionary<string, string> SigunguMap = new(StringComparer.OrdinalIgnoreCase)
+        public static readonly Dictionary<string, string> SigunguMap = new(StringComparer.OrdinalIgnoreCase)
         {
             { "강남구", "11680" }, { "강동구", "11740" }, { "강북구", "11305" }, { "강서구", "11500" },
             { "관악구", "11620" }, { "광진구", "11215" }, { "구로구", "11530" }, { "금천구", "11545" },
@@ -62,7 +97,7 @@ namespace OnHouseLocal.Services
         };
 
         // 서울 전역 주요 법정동코드 매핑 (5자리)
-        private static readonly Dictionary<string, (string sigunguCd, string bjdongCd)> DongMap = new(StringComparer.OrdinalIgnoreCase)
+        public static readonly Dictionary<string, (string sigunguCd, string bjdongCd)> DongMap = new(StringComparer.OrdinalIgnoreCase)
         {
             // 중랑구 (11260)
             { "묵동", ("11260", "10300") }, { "면목동", ("11260", "10100") }, { "상봉동", ("11260", "10200") },
@@ -143,6 +178,17 @@ namespace OnHouseLocal.Services
         };
 
         /// <summary>
+        /// 시군구코드(5), 법정동코드(5), 번지로부터 19자리 표준 PNU(필지고유번호)를 조합
+        /// </summary>
+        public static string BuildPnu(string sigunguCd, string bjdongCd, string bun, string ji, string platGb = "0")
+        {
+            string platDigit = (platGb == "1" || platGb == "2") ? "2" : "1";
+            string b = (string.IsNullOrEmpty(bun) ? "0" : bun).PadLeft(4, '0');
+            string j = (string.IsNullOrEmpty(ji) ? "0" : ji).PadLeft(4, '0');
+            return $"{sigunguCd}{bjdongCd}{platDigit}{b}{j}";
+        }
+
+        /// <summary>
         /// 주소를 분석하여 국토교통부 건축HUB 표제부 API 호출
         /// </summary>
         public async Task<BuildingLedgerInfo> QueryBuildingLedgerAsync(string address)
@@ -173,14 +219,12 @@ namespace OnHouseLocal.Services
                 }
 
                 // 동 매칭
-                bool foundDong = false;
                 foreach (var pair in DongMap)
                 {
                     if (address.Contains(pair.Key))
                     {
                         sigunguCd = pair.Value.sigunguCd;
                         bjdongCd = pair.Value.bjdongCd;
-                        foundDong = true;
                         break;
                     }
                 }
@@ -257,21 +301,7 @@ namespace OnHouseLocal.Services
                     bld = items;
                 }
 
-                info.Success = true;
-                info.BuildingName = GetJsonString(bld, "bldNm");
-                info.PlatAddress = GetJsonString(bld, "platPlc");
-                info.MainPurps = GetJsonString(bld, "mainPurpsCdNm");
-                info.GrndFlrCnt = GetJsonInt(bld, "grndFlrCnt");
-                info.UgrndFlrCnt = GetJsonInt(bld, "ugrndFlrCnt");
-                info.RideUseElvtCnt = GetJsonInt(bld, "rideUseElvtCnt");
-                info.EmgenUseElvtCnt = GetJsonInt(bld, "emgenUseElvtCnt");
-                info.TotalParking = GetJsonInt(bld, "indrAutoUtcnt") + GetJsonInt(bld, "oudrAutoUtcnt") + GetJsonInt(bld, "indrMechUtcnt") + GetJsonInt(bld, "oudrMechUtcnt");
-                
-                string itatBld = GetJsonString(bld, "itgrtItatBldYn");
-                if (string.IsNullOrEmpty(itatBld)) itatBld = GetJsonString(bld, "itatBldYn");
-                info.IsViolatingBuilding = itatBld == "1" || itatBld.Equals("Y", StringComparison.OrdinalIgnoreCase);
-                info.UseApprovalDate = GetJsonString(bld, "useAprDay");
-                info.Message = "건축물대장 표제부 조회가 완료되었습니다.";
+                PopulateBuildingLedgerInfo(info, bld);
             }
             catch (Exception ex)
             {
@@ -347,21 +377,7 @@ namespace OnHouseLocal.Services
                     bld = items;
                 }
 
-                info.Success = true;
-                info.BuildingName = GetJsonString(bld, "bldNm");
-                info.PlatAddress = GetJsonString(bld, "platPlc");
-                info.MainPurps = GetJsonString(bld, "mainPurpsCdNm");
-                info.GrndFlrCnt = GetJsonInt(bld, "grndFlrCnt");
-                info.UgrndFlrCnt = GetJsonInt(bld, "ugrndFlrCnt");
-                info.RideUseElvtCnt = GetJsonInt(bld, "rideUseElvtCnt");
-                info.EmgenUseElvtCnt = GetJsonInt(bld, "emgenUseElvtCnt");
-                info.TotalParking = GetJsonInt(bld, "indrAutoUtcnt") + GetJsonInt(bld, "oudrAutoUtcnt") + GetJsonInt(bld, "indrMechUtcnt") + GetJsonInt(bld, "oudrMechUtcnt");
-                
-                string itatBld = GetJsonString(bld, "itgrtItatBldYn");
-                if (string.IsNullOrEmpty(itatBld)) itatBld = GetJsonString(bld, "itatBldYn");
-                info.IsViolatingBuilding = itatBld == "1" || itatBld.Equals("Y", StringComparison.OrdinalIgnoreCase);
-                info.UseApprovalDate = GetJsonString(bld, "useAprDay");
-                info.Message = "건축물대장 표제부 조회가 완료되었습니다.";
+                PopulateBuildingLedgerInfo(info, bld);
             }
             catch (Exception ex)
             {
@@ -553,6 +569,86 @@ namespace OnHouseLocal.Services
                 if (prop.ValueKind == JsonValueKind.String && int.TryParse(prop.GetString(), out int v)) return v;
             }
             return 0;
+        }
+
+        private static double GetJsonDouble(JsonElement element, string propName)
+        {
+            if (element.TryGetProperty(propName, out var prop))
+            {
+                if (prop.ValueKind == JsonValueKind.Number) return prop.GetDouble();
+                if (prop.ValueKind == JsonValueKind.String && double.TryParse(prop.GetString(), out double v)) return v;
+            }
+            return 0;
+        }
+
+        private static long GetJsonLong(JsonElement element, string propName)
+        {
+            if (element.TryGetProperty(propName, out var prop))
+            {
+                if (prop.ValueKind == JsonValueKind.Number) return prop.GetInt64();
+                if (prop.ValueKind == JsonValueKind.String && long.TryParse(prop.GetString(), out long v)) return v;
+            }
+            return 0;
+        }
+
+        private static void PopulateBuildingLedgerInfo(BuildingLedgerInfo info, JsonElement bld)
+        {
+            info.Success = true;
+            info.BuildingName = GetJsonString(bld, "bldNm");
+            info.PlatAddress = GetJsonString(bld, "platPlc");
+            info.NewPlatAddress = GetJsonString(bld, "newPlatPlc");
+            info.DongName = GetJsonString(bld, "dongNm");
+            info.RegstrGbCdNm = GetJsonString(bld, "regstrGbCdNm");
+            info.MainPurps = GetJsonString(bld, "mainPurpsCdNm");
+            info.EtcPurps = GetJsonString(bld, "etcPurps");
+
+            info.PlatArea = GetJsonDouble(bld, "platArea");
+            info.ArchArea = GetJsonDouble(bld, "archArea");
+            info.TotArea = GetJsonDouble(bld, "totArea");
+            info.BcRat = GetJsonDouble(bld, "bcRat");
+            info.VlRat = GetJsonDouble(bld, "vlRat");
+
+            string strct = GetJsonString(bld, "strctCdNm");
+            if (string.IsNullOrEmpty(strct)) strct = GetJsonString(bld, "etcStrct");
+            info.Structure = strct;
+
+            string roof = GetJsonString(bld, "roofCdNm");
+            if (string.IsNullOrEmpty(roof)) roof = GetJsonString(bld, "etcRoof");
+            info.Roof = roof;
+
+            info.Height = GetJsonDouble(bld, "heit");
+            info.GrndFlrCnt = GetJsonInt(bld, "grndFlrCnt");
+            info.UgrndFlrCnt = GetJsonInt(bld, "ugrndFlrCnt");
+            info.HouseholdCount = GetJsonInt(bld, "hhldCnt");
+            info.FamilyCount = GetJsonInt(bld, "fmlyCnt");
+            info.HoCount = GetJsonInt(bld, "hoCnt");
+
+            info.RideUseElvtCnt = GetJsonInt(bld, "rideUseElvtCnt");
+            info.EmgenUseElvtCnt = GetJsonInt(bld, "emgenUseElvtCnt");
+
+            info.IndrAutoUtcnt = GetJsonInt(bld, "indrAutoUtcnt");
+            info.OudrAutoUtcnt = GetJsonInt(bld, "oudrAutoUtcnt");
+            info.IndrMechUtcnt = GetJsonInt(bld, "indrMechUtcnt");
+            info.OudrMechUtcnt = GetJsonInt(bld, "oudrMechUtcnt");
+            info.TotalParking = info.IndrAutoUtcnt + info.OudrAutoUtcnt + info.IndrMechUtcnt + info.OudrMechUtcnt;
+
+            string itatBld = GetJsonString(bld, "itgrtItatBldYn");
+            if (string.IsNullOrEmpty(itatBld)) itatBld = GetJsonString(bld, "itatBldYn");
+            info.IsViolatingBuilding = itatBld == "1" || itatBld.Equals("Y", StringComparison.OrdinalIgnoreCase);
+
+            info.PmsDay = GetJsonString(bld, "pmsDay");
+            info.StcnsDay = GetJsonString(bld, "stcnsDay");
+            info.UseApprovalDate = GetJsonString(bld, "useAprDay");
+
+            try
+            {
+                info.RawJson = bld.GetRawText();
+            }
+            catch
+            {
+                info.RawJson = "{}";
+            }
+            info.Message = "건축물대장 표제부 조회가 완료되었습니다.";
         }
     }
 }

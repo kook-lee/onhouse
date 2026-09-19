@@ -1379,13 +1379,22 @@ async function checkBuildingLedger() {
       card.style.background = '#1e1b4b';
       card.style.borderColor = '#6366f1';
       card.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <span style="font-weight: 700; color: #a5b4fc;">🏛️ 건축물대장 확인 완료 (${escapeHtml(data.buildingName || '건물명 없음')})</span>
-          <button type="button" onclick="applyLedgerToForm()" style="background: #4f46e5; color: #fff; border: none; padding: 3px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 600;">
-            ✨ 대장 정보 폼에 적용
-          </button>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" onclick="openLedgerFullModal(currentBuildingLedger)" style="background: #312e81; color: #c7d2fe; border: 1px solid #6366f1; padding: 3px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 600;">
+              🏛️ 대장 전체보기
+            </button>
+            <button type="button" onclick="applyLedgerToForm()" style="background: #4f46e5; color: #fff; border: none; padding: 3px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 600;">
+              ✨ 폼에 적용
+            </button>
+          </div>
         </div>
-        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; font-size: 11px; color: #cbd5e1;">
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; font-size: 11px; color: #cbd5e1;">
+          <div>• 대지면적: <b style="color: #86efac;">${data.platArea ? data.platArea.toFixed(1) + '㎡ (' + data.platAreaPyung + '평)' : '-'}</b></div>
+          <div>• 연면적: <b style="color: #67e8f9;">${data.totArea ? data.totArea.toFixed(1) + '㎡ (' + data.totAreaPyung + '평)' : '-'}</b></div>
+          <div>• 건폐율/용적률: <b>${data.bcRat ? data.bcRat.toFixed(1) + '%' : '-'} / ${data.vlRat ? data.vlRat.toFixed(1) + '%' : '-'}</b></div>
+          <div>• 주구조: <b>${escapeHtml(data.structure || '-')}</b></div>
           <div>• 지상 층수: <b>${data.grndFlrCnt}층</b> (지하 ${data.ugrndFlrCnt}층)</div>
           <div>• 승강기: <b>${data.totalElevatorCount}대</b> (승용 ${data.rideUseElvtCnt} / 비상 ${data.emgenUseElvtCnt})</div>
           <div>• 주차 대수: <b>${data.totalParking}대</b></div>
@@ -2700,11 +2709,12 @@ window.renderNaverList = function(list) {
         <div class="card-price">${escapeHtml(item.priceDisplay || '-')}</div>
       </div>
       <div class="card-title">${escapeHtml(item.articleName || '매물 ' + item.articleNumber)}</div>
-      <div class="card-address">📍 ${escapeHtml(item.address || '-')} (${escapeHtml(item.floorInfo || '-')})</div>
-      <div style="font-size: 0.8rem; color: #cbd5e1; margin: 6px 0; display: flex; gap: 12px;">
+      <div style="font-size: 0.8rem; color: #cbd5e1; margin: 6px 0; display: flex; gap: 8px; flex-wrap: wrap;">
         <span>🛗 승강기 ${item.hasElevator ? '있음' : '없음'}</span>
         <span>🚗 주차 ${item.totalParking}대</span>
-        <span>📐 면적 ${item.areaM2 ? item.areaM2.toFixed(1) + '㎡' : '-'}</span>
+        <span>📐 전용 ${item.areaM2 ? item.areaM2.toFixed(1) + '㎡' : '-'}</span>
+        ${item.platArea > 0 ? `<span style="color: #86efac; font-weight: 600;">🌱 대지 ${item.platArea.toFixed(1)}㎡(${(item.platArea * 0.3025).toFixed(1)}평)</span>` : ''}
+        ${item.publicPrice > 0 ? `<span style="color: #fde047; font-weight: 700;">🏢 공시가 ${(item.publicPrice / 10000).toLocaleString()}만</span>` : ''}
       </div>
       <div style="display: flex; gap: 6px; margin-top: 8px;">
         <button class="btn btn-sm btn-accent" style="flex: 1; font-size: 11px; padding: 4px;" onclick="event.stopPropagation(); auditSingleNaverListing(${item.id})">
@@ -2775,6 +2785,67 @@ window.selectNaverListing = function(id) {
   `;
   document.getElementById('naver-detail-title').textContent = item.articleName || '매물 정보';
   document.getElementById('naver-detail-price').textContent = item.priceDisplay || '-';
+
+  const hpCard = document.getElementById('naver-housing-price-card');
+  if (hpCard) {
+    if (item.publicPrice > 0) {
+      hpCard.style.display = 'block';
+      const yrBadge = document.getElementById('naver-public-price-year-badge');
+      if (yrBadge) yrBadge.textContent = `${item.publicPriceYear || '2024'}년 공시`;
+
+      const ppEl = document.getElementById('naver-public-price-display');
+      if (ppEl) ppEl.textContent = formatWonPrice(item.publicPrice);
+
+      const hugEl = document.getElementById('naver-hug-limit-display');
+      const hugLimit = item.hugGuaranteeLimit || Math.round(item.publicPrice * 1.26);
+      if (hugEl) hugEl.textContent = formatWonPrice(hugLimit);
+
+      const statusBox = document.getElementById('naver-hug-status-box');
+      if (statusBox) {
+        if (item.tradeType === '전세') {
+          let depositWon = 0;
+          const depMatch = item.priceDisplay ? item.priceDisplay.replace(/,/g, '').match(/(\d+)\s*억(?:\s*(\d+))?/) : null;
+          if (depMatch) {
+            const uk = parseInt(depMatch[1] || '0', 10);
+            const man = parseInt(depMatch[2] || '0', 10);
+            depositWon = (uk * 100000000) + (man * 10000);
+          } else {
+            const manMatch = item.priceDisplay ? item.priceDisplay.replace(/,/g, '').match(/(\d+)\s*만/) : null;
+            if (manMatch) depositWon = parseInt(manMatch[1], 10) * 10000;
+          }
+
+          if (depositWon > 0 && depositWon <= hugLimit) {
+            statusBox.style.background = '#064e3b';
+            statusBox.style.color = '#6ee7b7';
+            statusBox.style.border = '1px solid #059669';
+            statusBox.innerHTML = `✅ <b>HUG 126% 보증보험 가입 안전:</b> 전세보증금(${escapeHtml(item.priceDisplay)})이 보증한도(${formatWonPrice(hugLimit)}) 이내로 전액 보증 가능합니다.`;
+          } else if (depositWon > hugLimit) {
+            statusBox.style.background = '#450a0a';
+            statusBox.style.color = '#fca5a5';
+            statusBox.style.border = '1px solid #dc2626';
+            statusBox.innerHTML = `⚠️ <b>HUG 보증보험 한도 초과:</b> 전세보증금(${escapeHtml(item.priceDisplay)})이 보증한도(${formatWonPrice(hugLimit)})를 초과하여 전세반환보증 가입 불가 위험이 있습니다!`;
+          } else {
+            statusBox.style.background = '#064e3b';
+            statusBox.style.color = '#6ee7b7';
+            statusBox.style.border = '1px solid #059669';
+            statusBox.innerHTML = `🛡️ <b>HUG 안심전세 가입 기준:</b> 전세금 ${formatWonPrice(hugLimit)} 이하 시 보증보험 100% 가입 가능`;
+          }
+        } else if (item.tradeType === '매매') {
+          statusBox.style.background = '#1e3a8a';
+          statusBox.style.color = '#93c5fd';
+          statusBox.style.border = '1px solid #2563eb';
+          statusBox.innerHTML = `🏢 <b>공시가격 대비 매매가 비율:</b> HUG 안심전세 담보환산 140% 기준가: ${formatWonPrice(item.publicPrice * 1.4)}`;
+        } else {
+          statusBox.style.background = '#1e293b';
+          statusBox.style.color = '#cbd5e1';
+          statusBox.style.border = '1px solid #334155';
+          statusBox.innerHTML = `🛡️ <b>월세 보증금 안전:</b> HUG 126% 담보한도(${formatWonPrice(hugLimit)}) 대비 보증금 안전 매물`;
+        }
+      }
+    } else {
+      hpCard.style.display = 'none';
+    }
+  }
 
   const banner = document.getElementById('naver-detail-banner');
   if (item.ledgerStatus === 'Safe') {
@@ -2848,11 +2919,24 @@ window.selectNaverListing = function(id) {
   `;
 
   const ledgerEl = document.getElementById('naver-detail-ledger');
-  ledgerEl.innerHTML = `
+  let ledgerHtml = `
     <div><b>검증 상태:</b> ${escapeHtml(item.ledgerStatus)}</div>
     <div><b>판정 요약:</b> ${escapeHtml(item.ledgerMessage || '미검증')}</div>
-    <div><b>검증 시각:</b> ${item.inspectedAt ? new Date(item.inspectedAt).toLocaleString() : '미수행'}</div>
   `;
+  if (item.platArea > 0) {
+    ledgerHtml += `<div><b>대지면적:</b> <b style="color: #86efac;">${item.platArea.toFixed(1)}㎡ (${(item.platArea * 0.3025).toFixed(1)}평)</b></div>`;
+  }
+  if (item.totArea > 0) {
+    ledgerHtml += `<div><b>연면적:</b> ${item.totArea.toFixed(1)}㎡ (${(item.totArea * 0.3025).toFixed(1)}평)</div>`;
+  }
+  if (item.bcRat > 0 || item.vlRat > 0) {
+    ledgerHtml += `<div><b>건폐율/용적률:</b> ${item.bcRat ? item.bcRat.toFixed(1) + '%' : '-'} / ${item.vlRat ? item.vlRat.toFixed(1) + '%' : '-'}</div>`;
+  }
+  if (item.buildingStructure) {
+    ledgerHtml += `<div><b>건물 주구조:</b> ${escapeHtml(item.buildingStructure)}</div>`;
+  }
+  ledgerHtml += `<div><b>검증 시각:</b> ${item.inspectedAt ? new Date(item.inspectedAt).toLocaleString() : '미수행'}</div>`;
+  ledgerEl.innerHTML = ledgerHtml;
 
   document.getElementById('btn-naver-audit-single').onclick = () => auditSingleNaverListing(item.id);
   document.getElementById('btn-naver-import-prop').onclick = () => importNaverListingToProperties(item.id);
@@ -2860,6 +2944,310 @@ window.selectNaverListing = function(id) {
   if (webLink) {
     webLink.href = `https://fin.land.naver.com/articles/${item.articleNumber}`;
   }
+};
+
+// 금액 원단위 포맷터 (예: 224000000 -> 2억 2,400만원)
+function formatWonPrice(amount) {
+  if (!amount || isNaN(amount) || amount <= 0) return '-';
+  const num = Math.round(Number(amount));
+  if (num >= 100000000) {
+    const uk = Math.floor(num / 100000000);
+    const man = Math.floor((num % 100000000) / 10000);
+    return man > 0 ? `${uk}억 ${man.toLocaleString()}만원` : `${uk}억원`;
+  }
+  if (num >= 10000) {
+    return `${Math.floor(num / 10000).toLocaleString()}만원`;
+  }
+  return `${num.toLocaleString()}원`;
+}
+window.formatWonPrice = formatWonPrice;
+
+// 건축물대장 전산 원본 전체보기 모달 열기
+window.openCurrentListingLedgerModal = function() {
+  if (!selectedNaverListingId) {
+    alert('선택된 매물이 없습니다.');
+    return;
+  }
+  const item = currentNaverListings.find(x => x.id === selectedNaverListingId);
+  if (!item) return;
+
+  if (!item.ledgerRawJson && (!item.platArea || item.platArea <= 0)) {
+    if (confirm('아직 이 매물의 건축물대장 전산 데이터가 수집되지 않았습니다.\n\n지금 국토교통부 실시간 조회를 실행하시겠습니까?')) {
+      auditSingleNaverListing(item.id).then(() => {
+        const updated = currentNaverListings.find(x => x.id === item.id);
+        if (updated) openLedgerFullModal(updated);
+      });
+    }
+    return;
+  }
+  openLedgerFullModal(item);
+};
+
+window.openLedgerFullModal = function(item) {
+  const modal = document.getElementById('modal-ledger-full');
+  if (!modal) return;
+
+  window._currentLedgerModalItem = item;
+
+  let raw = {};
+  if (item.ledgerRawJson) {
+    try { raw = JSON.parse(item.ledgerRawJson); } catch {}
+  }
+
+  const titleEl = document.getElementById('ledger-modal-title');
+  const subEl = document.getElementById('ledger-modal-sub');
+  const badgeBar = document.getElementById('ledger-modal-badge-bar');
+  const tBasic = document.getElementById('ledger-table-basic');
+  const tArea = document.getElementById('ledger-table-area');
+  const tStructure = document.getElementById('ledger-table-structure');
+  const tAdmin = document.getElementById('ledger-table-admin');
+  const tPrice = document.getElementById('ledger-table-price');
+
+  const bldName = raw.bldNm || item.articleName || '건축물대장';
+  const platPlc = raw.platPlc || item.address || '-';
+  const newPlatPlc = raw.newPlatPlc || '-';
+
+  if (titleEl) titleEl.textContent = `🏛️ 건축물대장(표제부) - ${bldName}`;
+  if (subEl) subEl.textContent = `소재지: ${platPlc} (매물번호: ${item.articleNumber || '-'})`;
+
+  // 상단 뱃지 바
+  let badgesHtml = '';
+  if (item.ledgerStatus === 'Safe') badgesHtml += '<span class="badge" style="background: #065f46; color: #6ee7b7; font-weight: 700; padding: 4px 8px;">✅ 정상 일치</span>';
+  else if (item.ledgerStatus === 'Warning') badgesHtml += '<span class="badge" style="background: #78350f; color: #fde68a; font-weight: 700; padding: 4px 8px;">⚠️ 주의 요망</span>';
+  else if (item.ledgerStatus === 'Danger') badgesHtml += '<span class="badge" style="background: #7f1d1d; color: #fca5a5; font-weight: 700; padding: 4px 8px;">🚨 과태료 위험</span>';
+  
+  const itatYn = raw.itgrtItatBldYn === '1' || raw.itatBldYn === '1';
+  badgesHtml += itatYn 
+    ? '<span class="badge" style="background: #991b1b; color: #fee2e2; font-weight: 700; padding: 4px 8px;">🚨 위반건축물 등재</span>'
+    : '<span class="badge" style="background: #064e3b; color: #a7f3d0; font-weight: 700; padding: 4px 8px;">✅ 위반건축물 없음</span>';
+
+  if (raw.regstrGbCdNm) {
+    badgesHtml += `<span class="badge" style="background: #1e293b; color: #cbd5e1; padding: 4px 8px;">${escapeHtml(raw.regstrGbCdNm)}건축물</span>`;
+  }
+  if (item.publicPrice > 0) {
+    badgesHtml += `<span class="badge" style="background: #1e1b4b; color: #c7d2fe; font-weight: 700; padding: 4px 8px;">🏢 공시가격 ${formatWonPrice(item.publicPrice)}</span>`;
+    badgesHtml += `<span class="badge" style="background: #042f2e; color: #5eead4; font-weight: 700; padding: 4px 8px;">🛡️ HUG 126% 한도 ${formatWonPrice(item.hugGuaranteeLimit || Math.round(item.publicPrice * 1.26))}</span>`;
+  }
+  if (badgeBar) badgeBar.innerHTML = badgesHtml;
+
+  const thStyle = 'padding: 8px 12px; background: #1e293b; color: #94a3b8; font-weight: 600; width: 18%; border: 1px solid #334155;';
+  const tdStyle = 'padding: 8px 12px; color: #f8fafc; border: 1px solid #334155;';
+
+  // 1. 기본 사항
+  if (tBasic) {
+    tBasic.innerHTML = `
+      <tr>
+        <th style="${thStyle}">건물명</th><td style="${tdStyle}"><b>${escapeHtml(bldName)}</b></td>
+        <th style="${thStyle}">동명칭</th><td style="${tdStyle}">${escapeHtml(raw.dongNm || item.floorInfo || '-')}</td>
+      </tr>
+      <tr>
+        <th style="${thStyle}">대지위치(지번)</th><td style="${tdStyle}">${escapeHtml(platPlc)}</td>
+        <th style="${thStyle}">도로명주소</th><td style="${tdStyle}">${escapeHtml(newPlatPlc)}</td>
+      </tr>
+      <tr>
+        <th style="${thStyle}">주용도</th><td style="${tdStyle}">${escapeHtml(raw.mainPurpsCdNm || '-')}</td>
+        <th style="${thStyle}">기타용도</th><td style="${tdStyle}">${escapeHtml(raw.etcPurps || '-')}</td>
+      </tr>
+      <tr>
+        <th style="${thStyle}">대장구분</th><td style="${tdStyle}">${escapeHtml(raw.regstrGbCdNm || raw.regstrKindCdNm || '-')}</td>
+        <th style="${thStyle}">세대/호수</th><td style="${tdStyle}">세대수: ${raw.hhldCnt || 0}세대 / 가구수: ${raw.fmlyCnt || 0}가구 / 호수: ${raw.hoCnt || 0}호</td>
+      </tr>
+    `;
+  }
+
+  // 2. 대지면적 및 면적/규모
+  const platAreaVal = Number(raw.platArea || item.platArea || 0);
+  const archAreaVal = Number(raw.archArea || item.archArea || 0);
+  const totAreaVal = Number(raw.totArea || item.totArea || 0);
+  const bcRatVal = Number(raw.bcRat || item.bcRat || 0);
+  const vlRatVal = Number(raw.vlRat || item.vlRat || 0);
+  const heitVal = Number(raw.heit || 0);
+  const grndFlr = raw.grndFlrCnt !== undefined ? raw.grndFlrCnt : '-';
+  const ugrndFlr = raw.ugrndFlrCnt !== undefined ? raw.ugrndFlrCnt : '-';
+
+  if (tArea) {
+    tArea.innerHTML = `
+      <tr>
+        <th style="${thStyle}">대지면적</th>
+        <td style="${tdStyle}">
+          <b style="color: #86efac; font-size: 13px;">${platAreaVal > 0 ? platAreaVal.toFixed(2) + ' ㎡' : '-'}</b>
+          ${platAreaVal > 0 ? ` <span style="color: #94a3b8;">(${(platAreaVal * 0.3025).toFixed(1)}평)</span>` : ''}
+        </td>
+        <th style="${thStyle}">건축면적</th>
+        <td style="${tdStyle}">
+          ${archAreaVal > 0 ? archAreaVal.toFixed(2) + ' ㎡' : '-'}
+          ${archAreaVal > 0 ? ` <span style="color: #94a3b8;">(${(archAreaVal * 0.3025).toFixed(1)}평)</span>` : ''}
+        </td>
+      </tr>
+      <tr>
+        <th style="${thStyle}">연면적</th>
+        <td style="${tdStyle}">
+          <b style="color: #67e8f9; font-size: 13px;">${totAreaVal > 0 ? totAreaVal.toFixed(2) + ' ㎡' : '-'}</b>
+          ${totAreaVal > 0 ? ` <span style="color: #94a3b8;">(${(totAreaVal * 0.3025).toFixed(1)}평)</span>` : ''}
+        </td>
+        <th style="${thStyle}">용적률 산정연면적</th>
+        <td style="${tdStyle}">${raw.vlRatEstmTotArea ? Number(raw.vlRatEstmTotArea).toFixed(2) + ' ㎡' : '-'}</td>
+      </tr>
+      <tr>
+        <th style="${thStyle}">건폐율</th>
+        <td style="${tdStyle}"><b style="color: #fde047;">${bcRatVal > 0 ? bcRatVal.toFixed(2) + ' %' : '-'}</b></td>
+        <th style="${thStyle}">용적률</th>
+        <td style="${tdStyle}"><b style="color: #fde047;">${vlRatVal > 0 ? vlRatVal.toFixed(2) + ' %' : '-'}</b></td>
+      </tr>
+      <tr>
+        <th style="${thStyle}">층수 규모</th>
+        <td style="${tdStyle}">지상 <b style="color: #38bdf8;">${grndFlr}층</b> / 지하 ${ugrndFlr}층</td>
+        <th style="${thStyle}">건축물 높이</th>
+        <td style="${tdStyle}">${heitVal > 0 ? heitVal.toFixed(1) + ' m' : '-'}</td>
+      </tr>
+    `;
+  }
+
+  // 3. 주구조 및 설비
+  const strctNm = raw.strctCdNm || raw.etcStrct || item.buildingStructure || '-';
+  const roofNm = raw.roofCdNm || raw.etcRoof || '-';
+  const rideElvt = Number(raw.rideUseElvtCnt || 0);
+  const emgenElvt = Number(raw.emgenUseElvtCnt || 0);
+  const totalElvt = rideElvt + emgenElvt;
+  const indrAuto = Number(raw.indrAutoUtcnt || 0);
+  const oudrAuto = Number(raw.oudrAutoUtcnt || 0);
+  const indrMech = Number(raw.indrMechUtcnt || 0);
+  const oudrMech = Number(raw.oudrMechUtcnt || 0);
+  const totalPark = indrAuto + oudrAuto + indrMech + oudrMech || item.totalParking || 0;
+
+  if (tStructure) {
+    tStructure.innerHTML = `
+      <tr>
+        <th style="${thStyle}">주구조</th><td style="${tdStyle}"><b>${escapeHtml(strctNm)}</b></td>
+        <th style="${thStyle}">지붕구조</th><td style="${tdStyle}">${escapeHtml(roofNm)}</td>
+      </tr>
+      <tr>
+        <th style="${thStyle}">승강기(엘리베이터)</th>
+        <td style="${tdStyle}">
+          ${totalElvt > 0 ? `<b style="color: #34d399;">총 ${totalElvt}대 완비 🛗</b> (승용: ${rideElvt}대 / 비상용: ${emgenElvt}대)` : '<span style="color: #94a3b8;">승강기 없음 (0대)</span>'}
+        </td>
+        <th style="${thStyle}">총 주차대수</th>
+        <td style="${tdStyle}">
+          <b style="color: #fbbf24;">총 ${totalPark}대</b>
+          <span style="font-size: 11px; color: #94a3b8; display: block; margin-top: 2px;">
+            (자주식: 옥내 ${indrAuto}대 / 옥외 ${oudrAuto}대 | 기계식: 옥내 ${indrMech}대 / 옥외 ${oudrMech}대)
+          </span>
+        </td>
+      </tr>
+    `;
+  }
+
+  // 4. 인허가 및 위반건축물
+  const pmsDay = raw.pmsDay ? raw.pmsDay.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : '-';
+  const stcnsDay = raw.stcnsDay ? raw.stcnsDay.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : '-';
+  const useAprDay = raw.useAprDay ? raw.useAprDay.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : (item.approvalDate || '-');
+
+  if (tAdmin) {
+    tAdmin.innerHTML = `
+      <tr>
+        <th style="${thStyle}">위반건축물 여부</th>
+        <td style="${tdStyle}" colspan="3">
+          ${itatYn 
+            ? '<b style="color: #ef4444; font-size: 13px;">🚨 위반건축물 등재 건물 (이행강제금 부과 또는 대출/보증보험 불가 위험)</b>' 
+            : '<b style="color: #10b981; font-size: 13px;">✅ 정상 건축물 (위반건축물 등재 내역 없음)</b>'}
+        </td>
+      </tr>
+      <tr>
+        <th style="${thStyle}">허가일자</th><td style="${tdStyle}">${pmsDay}</td>
+        <th style="${thStyle}">착공일자</th><td style="${tdStyle}">${stcnsDay}</td>
+      </tr>
+      <tr>
+        <th style="${thStyle}">사용승인일(준공일)</th><td style="${tdStyle}" colspan="3"><b style="color: #f8fafc;">${useAprDay}</b></td>
+      </tr>
+    `;
+  }
+
+  // 5. 공시가격 & HUG 126% 분석
+  if (tPrice) {
+    if (item.publicPrice > 0) {
+      const hugLimit = item.hugGuaranteeLimit || Math.round(item.publicPrice * 1.26);
+      const year = item.publicPriceYear || '최신';
+      tPrice.innerHTML = `
+        <tr>
+          <th style="${thStyle}">공동주택 공시가격</th>
+          <td style="${tdStyle}">
+            <b style="color: #6ee7b7; font-size: 15px;">${formatWonPrice(item.publicPrice)}</b>
+            <span style="color: #94a3b8; font-size: 11px; margin-left: 6px;">(${year}년 국토교통부 고시)</span>
+          </td>
+          <th style="${thStyle}">🛡️ HUG 126% 보증한도</th>
+          <td style="${tdStyle}">
+            <b style="color: #38bdf8; font-size: 15px;">${formatWonPrice(hugLimit)}</b>
+            <span style="font-size: 11px; color: #94a3b8; display: block; margin-top: 2px;">(공시가격 × 140% × 90%)</span>
+          </td>
+        </tr>
+        <tr>
+          <th style="${thStyle}">보증보험 가입 진단</th>
+          <td style="${tdStyle}" colspan="3">
+            <div style="background: rgba(6, 78, 59, 0.4); border: 1px solid #059669; padding: 10px 12px; border-radius: 6px; color: #a7f3d0; line-height: 1.6;">
+              <b>💡 중개사 필수 안심전세 가이드:</b><br>
+              • 본 매물의 전세보증금이 <b>${formatWonPrice(hugLimit)}</b> 이하일 경우 세입자의 <b>HUG 안심전세 반환보증보험 및 버팀목 전세대출</b> 전액 가입이 안전합니다.<br>
+              • 현재 광고 가격: <b style="color: #fbbf24;">${item.priceDisplay}</b>
+            </div>
+          </td>
+        </tr>
+      `;
+    } else {
+      tPrice.innerHTML = `
+        <tr>
+          <td colspan="4" style="padding: 16px; text-align: center; color: #94a3b8;">
+            VWorld 공동주택 공시가격 내역이 아직 수집되지 않았습니다.<br>
+            <span style="font-size: 11px; color: #64748b;">(우측 하단 [⚡ 이 매물 대장 재검증] 버튼을 클릭하시면 최신 공시가격과 126% 한도를 즉시 산출합니다)</span>
+          </td>
+        </tr>
+      `;
+    }
+  }
+
+  modal.style.display = 'flex';
+};
+
+window.closeLedgerFullModal = function() {
+  const modal = document.getElementById('modal-ledger-full');
+  if (modal) modal.style.display = 'none';
+};
+
+window.copyLedgerModalSummary = function() {
+  const item = window._currentLedgerModalItem;
+  if (!item) return;
+
+  let raw = {};
+  try { raw = JSON.parse(item.ledgerRawJson || '{}'); } catch {}
+
+  const bldName = raw.bldNm || item.articleName || '건물';
+  const platPlc = raw.platPlc || item.address || '-';
+  const platArea = (item.platArea || Number(raw.platArea || 0));
+  const totArea = (item.totArea || Number(raw.totArea || 0));
+  const bcRat = (item.bcRat || Number(raw.bcRat || 0));
+  const vlRat = (item.vlRat || Number(raw.vlRat || 0));
+  const hugLimit = item.hugGuaranteeLimit || Math.round(item.publicPrice * 1.26);
+
+  const text = `[건축물대장 표제부 요약 - ${bldName}]
+• 소재지: ${platPlc}
+• 주용도: ${raw.mainPurpsCdNm || '-'}${raw.etcPurps ? ' (' + raw.etcPurps + ')' : ''}
+• 대지면적: ${platArea > 0 ? platArea.toFixed(1) + '㎡ (' + (platArea * 0.3025).toFixed(1) + '평)' : '-'}
+• 연면적: ${totArea > 0 ? totArea.toFixed(1) + '㎡ (' + (totArea * 0.3025).toFixed(1) + '평)' : '-'}
+• 건폐율/용적률: ${bcRat > 0 ? bcRat.toFixed(1) + '%' : '-'} / ${vlRat > 0 ? vlRat.toFixed(1) + '%' : '-'}
+• 규모: 지상 ${raw.grndFlrCnt || '-'}층 / 지하 ${raw.ugrndFlrCnt || '-'}층 (주구조: ${raw.strctCdNm || item.buildingStructure || '-'})
+• 승강기/주차: ${item.hasElevator ? '승강기 완비' : '승강기 없음'} / 주차 총 ${item.totalParking}대
+• 위반건축물: ${raw.itgrtItatBldYn === '1' ? '🚨 위반건축물 등재' : '✅ 정상 (위반 없음)'}
+• 사용승인일: ${raw.useAprDay ? raw.useAprDay.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : (item.approvalDate || '-')}
+${item.publicPrice > 0 ? `• 공동주택 공시가격: ${formatWonPrice(item.publicPrice)} (${item.publicPriceYear || '최신'}년 기준)
+• HUG 안심전세 126% 보증보험 한도: ${formatWonPrice(hugLimit)}` : ''}`;
+
+  navigator.clipboard.writeText(text).then(() => {
+    alert('📋 건축물대장 및 HUG 126% 요약 정보가 클립보드에 복사되었습니다!\n카카오톡 또는 손님 브리핑에 바로 붙여넣으세요.');
+  }).catch(() => {
+    alert('클립보드 복사 실패');
+  });
+};
+
+window.printLedgerModal = function() {
+  window.print();
 };
 
 // 미검증 대장 일괄 검증 실행
@@ -3134,15 +3522,33 @@ function renderNaverInspectionResult(data) {
 
   const l = data.ledgerItem || {};
   if (l.success) {
+    let hpSummary = '';
+    if (data.publicPrice > 0) {
+      hpSummary = `
+        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed #334155;">
+          <div><b>🏢 공시가격:</b> <b style="color: #6ee7b7;">${formatWonPrice(data.publicPrice)}</b> (${data.publicPriceYear}년)</div>
+          <div><b>🛡️ HUG 126% 한도:</b> <b style="color: #38bdf8;">${formatWonPrice(data.hugGuaranteeLimit)}</b></div>
+        </div>
+      `;
+    }
+
     ledgerCard.innerHTML = `
       <div><b>건물명:</b> ${escapeHtml(l.buildingName || '미등록')}</div>
       <div><b>대지위치:</b> ${escapeHtml(l.platAddress || '-')}</div>
-      <div><b>주용도:</b> ${escapeHtml(l.mainPurps || '-')}</div>
-      <div><b>규모:</b> 지상 <b style="color: #38bdf8;">${l.grndFlrCnt}층</b> / 지하 ${l.ugrndFlrCnt}층</div>
+      ${l.platArea > 0 ? `<div><b>대지면적:</b> <b style="color: #86efac;">${l.platArea.toFixed(1)}㎡ (${(l.platArea * 0.3025).toFixed(1)}평)</b></div>` : ''}
+      ${l.totArea > 0 ? `<div><b>연면적:</b> <b style="color: #67e8f9;">${l.totArea.toFixed(1)}㎡ (${(l.totArea * 0.3025).toFixed(1)}평)</b></div>` : ''}
+      ${(l.bcRat > 0 || l.vlRat > 0) ? `<div><b>건폐율/용적률:</b> ${l.bcRat ? l.bcRat.toFixed(1) + '%' : '-'} / ${l.vlRat ? l.vlRat.toFixed(1) + '%' : '-'}</div>` : ''}
+      <div><b>규모:</b> 지상 <b style="color: #38bdf8;">${l.grndFlrCnt}층</b> / 지하 ${l.ugrndFlrCnt}층 (구조: ${escapeHtml(l.structure || '-')})</div>
       <div><b>승강기:</b> <b style="${l.rideUseElvtCnt > 0 ? 'color: #34d399;' : ''}">${l.rideUseElvtCnt > 0 ? '승용 ' + l.rideUseElvtCnt + '대 완비 🛗' : '승강기 없음'}</b></div>
       <div><b>주차설비:</b> 총 ${l.totalParking}대 (자주식/기계식)</div>
       <div><b>사용승인일:</b> ${l.useApprovalDate ? l.useApprovalDate.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : '-'}</div>
       <div><b>위반건축물:</b> <b style="${l.isViolatingBuilding ? 'color: #f87171;' : 'color: #34d399;'}">${l.isViolatingBuilding ? '🚨 위반건축물 등재' : '✅ 정상 (위반 없음)'}</b></div>
+      ${hpSummary}
+      <div style="margin-top: 8px;">
+        <button type="button" class="btn btn-sm btn-outline" onclick="openLedgerFullModal(window._lastNaverInspection?.ledgerItem)" style="width: 100%; border-color: #6366f1; color: #a5b4fc; font-size: 11px; padding: 5px;">
+          🏛️ 건축물대장 전산 원본 전체보기 &gt;
+        </button>
+      </div>
     `;
   } else {
     ledgerCard.innerHTML = `

@@ -29,6 +29,10 @@
     <Compile Remove="OnHouseLauncher\**" />
     <EmbeddedResource Remove="OnHouseLauncher\**" />
     <None Remove="OnHouseLauncher\**" />
+    <Compile Remove="publish\**" />
+    <EmbeddedResource Remove="publish\**" />
+    <None Remove="publish\**" />
+    <Content Remove="publish\**" />
   </ItemGroup>
 
   <ItemGroup>
