@@ -85,8 +85,19 @@ namespace OnHouseLocal.Services
                 int curYear = DateTime.Now.Year;
                 for (int y = curYear; y >= curYear - 2; y--)
                 {
-                    var yrRecords = await FetchPriceRecordsAsync(pnu, dongClean, hoClean, y.ToString());
-                    if (yrRecords.Count == 0 && (!string.IsNullOrEmpty(dongClean) || !string.IsNullOrEmpty(hoClean)))
+                    // 1) 호수와 연도로 우선 조회 (단일동 건물은 dongNm이 빈칸이므로 호수 단독이 가장 정확)
+                    var yrRecords = !string.IsNullOrEmpty(hoClean) 
+                        ? await FetchPriceRecordsAsync(pnu, "", hoClean, y.ToString()) 
+                        : new List<PublicHousingPriceYearItem>();
+
+                    // 2) 호수로 안 나온 경우 동+호로 조회
+                    if (yrRecords.Count == 0 && !string.IsNullOrEmpty(dongClean) && !string.IsNullOrEmpty(hoClean))
+                    {
+                        yrRecords = await FetchPriceRecordsAsync(pnu, dongClean, hoClean, y.ToString());
+                    }
+
+                    // 3) 전체 호수 해당 연도 조회
+                    if (yrRecords.Count == 0)
                     {
                         yrRecords = await FetchPriceRecordsAsync(pnu, "", "", y.ToString());
                     }
@@ -101,8 +112,15 @@ namespace OnHouseLocal.Services
                 // 2차 시도: 연도별 조회에서 나오지 않은 경우, 전체 연도 통합 조회 (최대 1000건 확보)
                 if (records.Count == 0)
                 {
-                    records = await FetchPriceRecordsAsync(pnu, dongClean, hoClean, "");
-                    if (records.Count == 0 && (!string.IsNullOrEmpty(dongClean) || !string.IsNullOrEmpty(hoClean)))
+                    if (!string.IsNullOrEmpty(hoClean))
+                    {
+                        records = await FetchPriceRecordsAsync(pnu, "", hoClean, "");
+                    }
+                    if (records.Count == 0 && !string.IsNullOrEmpty(dongClean) && !string.IsNullOrEmpty(hoClean))
+                    {
+                        records = await FetchPriceRecordsAsync(pnu, dongClean, hoClean, "");
+                    }
+                    if (records.Count == 0)
                     {
                         records = await FetchPriceRecordsAsync(pnu, "", "", "");
                     }
@@ -116,35 +134,35 @@ namespace OnHouseLocal.Services
                 }
 
                 // 2. 최적 레코드 선별
-                // 우선순위 1: 동 + 호 정확 일치
                 var matchRecords = records;
                 bool exactMatch = false;
 
-                if (!string.IsNullOrEmpty(dongClean) && !string.IsNullOrEmpty(hoClean))
+                // 우선순위 1: 호수 일치 (숫자 완벽 일치 우선)
+                if (!string.IsNullOrEmpty(hoClean))
                 {
-                    var exact = records.Where(r => 
-                        (r.Dong.Contains(dongClean) || dongClean.Contains(r.Dong)) && 
-                        (r.Ho == hoClean || r.Ho.Contains(hoClean))).ToList();
-
-                    if (exact.Count > 0)
+                    string hoDigits = Regex.Replace(hoClean, @"[^\d]", "");
+                    var hoExact = records.Where(r => 
                     {
-                        matchRecords = exact;
+                        string rHo = Regex.Replace(r.Ho, @"[^\d]", "");
+                        return (!string.IsNullOrEmpty(hoDigits) && rHo == hoDigits) || r.Ho == hoClean || r.Ho.Contains(hoClean);
+                    }).ToList();
+
+                    if (hoExact.Count > 0)
+                    {
+                        // 동 정보가 있는 경우 동 일치 우선 필터
+                        if (!string.IsNullOrEmpty(dongClean))
+                        {
+                            var dongExact = hoExact.Where(r => 
+                                !string.IsNullOrEmpty(r.Dong) && 
+                                (r.Dong.Contains(dongClean) || dongClean.Contains(r.Dong))).ToList();
+                            if (dongExact.Count > 0) hoExact = dongExact;
+                        }
+                        matchRecords = hoExact;
                         exactMatch = true;
                     }
                 }
 
-                // 우선순위 2: 호수 일치
-                if (!exactMatch && !string.IsNullOrEmpty(hoClean))
-                {
-                    var hoMatches = records.Where(r => r.Ho == hoClean || r.Ho.Contains(hoClean)).ToList();
-                    if (hoMatches.Count > 0)
-                    {
-                        matchRecords = hoMatches;
-                        exactMatch = true;
-                    }
-                }
-
-                // 우선순위 3: 전용면적(±2.0㎡ 이내) 일치
+                // 우선순위 2: 전용면적(±2.0㎡ 이내) 일치
                 if (!exactMatch && exclusiveArea > 0)
                 {
                     var areaMatches = records.Where(r => Math.Abs(r.Area - exclusiveArea) <= 2.0).ToList();
@@ -154,7 +172,7 @@ namespace OnHouseLocal.Services
                     }
                 }
 
-                // 최신 연도 기준 정렬 (숫자 크기 내림차순 정렬)
+                // 최신 연도 기준 정렬 (숫자 크기 내림차순 정렬: 2026 우선)
                 var sorted = matchRecords
                     .OrderByDescending(r => int.TryParse(r.Year, out int y) ? y : 0)
                     .ThenByDescending(r => r.UpdatedDate)

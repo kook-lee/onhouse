@@ -410,7 +410,9 @@ namespace OnHouseLocal.Services
         public async Task<NaverInspectionResult> InspectAndCompareAsync(
             string urlOrArticleNo, 
             BuildingLedgerService ledgerService,
-            VWorldHousingPriceService? vworldService = null)
+            VWorldHousingPriceService? vworldService = null,
+            string fallbackArticleName = "",
+            string fallbackFloorInfo = "")
         {
             var res = new NaverInspectionResult();
             string articleNo = ExtractArticleNumber(urlOrArticleNo);
@@ -430,13 +432,34 @@ namespace OnHouseLocal.Services
                 return res;
             }
 
+            // 만약 Naver API의 articleName에 호수가 생략되어 있고 fallbackArticleName에 호수가 있는 경우 보정
+            if (!string.IsNullOrEmpty(fallbackArticleName) && (string.IsNullOrEmpty(naverItem.ArticleName) || !naverItem.ArticleName.Contains("호")))
+            {
+                naverItem.ArticleName = fallbackArticleName;
+            }
+
             res.NaverItem = naverItem;
+
+            // 동 및 호수 사전 파싱
+            string dongNm = "";
+            string hoNm = "";
+            string allText = $"{naverItem.ArticleName} {naverItem.Title} {naverItem.Description} {naverItem.FloorInfo} {fallbackArticleName} {fallbackFloorInfo}";
+
+            var dongMatch = Regex.Match(allText, @"(\d{1,4})\s*동");
+            if (dongMatch.Success) dongNm = dongMatch.Groups[1].Value;
+
+            var hoMatch = Regex.Match(allText, @"([1-9]\d{1,3})\s*호");
+            if (hoMatch.Success) hoNm = hoMatch.Groups[1].Value;
 
             // 건축물대장 조회 (sigunguCd, bjdongCd, bun, ji)
             BuildingLedgerInfo? ledger = null;
             if (!string.IsNullOrEmpty(naverItem.SigunguCd) && !string.IsNullOrEmpty(naverItem.BjdongCd) && !string.IsNullOrEmpty(naverItem.Bun))
             {
                 ledger = await ledgerService.QueryBuildingLedgerByCodesAsync(naverItem.SigunguCd, naverItem.BjdongCd, naverItem.Bun, naverItem.Ji);
+                if (ledger != null && ledger.Success)
+                {
+                    await ledgerService.EnrichWithExposPubuseAreaAsync(ledger, naverItem.SigunguCd, naverItem.BjdongCd, naverItem.Bun, naverItem.Ji, hoNm, dongNm);
+                }
             }
 
             res.LedgerItem = ledger;
@@ -597,17 +620,36 @@ namespace OnHouseLocal.Services
                 });
             }
 
+            // 6-1. 해당 호수 법정 대지권(대지지분)
+            if (ledger.UnitLandShareArea > 0)
+            {
+                res.Discrepancies.Add(new DiscrepancyItem
+                {
+                    ItemName = "📐 해당 호수 대지권 (대지지분)",
+                    NaverValue = $"건물 총 대지 {ledger.PlatArea:F1}㎡ ({ledger.PlatAreaPyung}평)",
+                    LedgerValue = $"★ 대지지분 {ledger.UnitLandShareArea:F2}㎡ ({ledger.UnitLandShareAreaPyung:F1}평) [비율: {ledger.UnitLandShareRatio}]",
+                    Status = "Match",
+                    Note = $"건축물대장 전유공용면적 기준 해당 {hoNm}호에 귀속된 법정 대지권 지분입니다."
+                });
+            }
+
+            // 6-2. 해당 호수 실사용 전유부 면적 상세
+            if (ledger.UnitExclusiveArea > 0)
+            {
+                bool areaMatch = Math.Abs(naverItem.ExclusiveArea - ledger.UnitExclusiveArea) <= 1.0;
+                res.Discrepancies.Add(new DiscrepancyItem
+                {
+                    ItemName = "🏠 호별 면적 상세 (전유/공용/계약)",
+                    NaverValue = $"전용 {naverItem.ExclusiveArea:F2}㎡ ({Math.Round(naverItem.ExclusiveArea * 0.3025, 1)}평)",
+                    LedgerValue = $"전유 {ledger.UnitExclusiveArea:F2}㎡ + 공용 {ledger.UnitCommonArea:F2}㎡ = 계약합계 {ledger.UnitContractArea:F2}㎡ ({ledger.UnitContractAreaPyung:F1}평)",
+                    Status = areaMatch ? "Match" : "Warning",
+                    Note = areaMatch ? "네이버 광고 전용면적과 실제 대장 전유면적이 일치합니다." : "실제 대장 전유면적과 광고 면적 간 차이가 있습니다."
+                });
+            }
+
             // 7. VWorld 공동주택 공시가격 및 HUG 안심전세 126% 보증보험 한도 분석
             try
             {
-                string dongNm = "";
-                string hoNm = "";
-                var dongMatch = Regex.Match(naverItem.ArticleName + " " + naverItem.Title, @"(\d{1,4})\s*동");
-                if (dongMatch.Success) dongNm = dongMatch.Groups[1].Value;
-
-                var hoMatch = Regex.Match(naverItem.ArticleName + " " + naverItem.Title + " " + naverItem.Description + " " + naverItem.FloorInfo, @"([1-9]\d{1,3})\s*호");
-                if (hoMatch.Success) hoNm = hoMatch.Groups[1].Value;
-
                 string pnu = "";
                 if (!string.IsNullOrEmpty(naverItem.SigunguCd) && !string.IsNullOrEmpty(naverItem.BjdongCd) && !string.IsNullOrEmpty(naverItem.Bun))
                 {
@@ -855,7 +897,7 @@ namespace OnHouseLocal.Services
                 };
             }
 
-            var res = await InspectAndCompareAsync(item.ArticleNumber, ledgerService, vworldService);
+            var res = await InspectAndCompareAsync(item.ArticleNumber, ledgerService, vworldService, item.ArticleName, item.FloorInfo);
             string status = res.OverallStatus; // "Safe", "Warning", "Danger"
             if (!res.Success) status = "Failed";
 

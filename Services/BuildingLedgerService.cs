@@ -58,8 +58,34 @@ namespace OnHouseLocal.Services
         public string UseApprovalDate { get; set; } = string.Empty; // 사용승인일
         public bool IsViolatingBuilding { get; set; } // 위반건축물 여부
 
+        // 호별 전유/공용 및 대지권 상세 정보
+        public string TargetHo { get; set; } = string.Empty;
+        public string TargetDong { get; set; } = string.Empty;
+        public double UnitExclusiveArea { get; set; } // 전용(전유)면적 (㎡)
+        public double UnitCommonArea { get; set; }    // 공용면적 (㎡)
+        public double UnitContractArea => Math.Round(UnitExclusiveArea + UnitCommonArea, 2); // 총 계약면적 (㎡)
+        public double UnitLandShareArea { get; set; } // 해당 호수 대지권 지분 면적 (㎡)
+        public string UnitLandShareRatio { get; set; } = string.Empty; // 대지권 비율
+        public double UnitExclusiveAreaPyung => Math.Round(UnitExclusiveArea * 0.3025, 1);
+        public double UnitCommonAreaPyung => Math.Round(UnitCommonArea * 0.3025, 1);
+        public double UnitContractAreaPyung => Math.Round(UnitContractArea * 0.3025, 1);
+        public double UnitLandShareAreaPyung => Math.Round(UnitLandShareArea * 0.3025, 1);
+        public List<ExposPubuseAreaItem> ExposPubuseList { get; set; } = new();
+
         // 원본 전산 데이터
         public string RawJson { get; set; } = string.Empty;
+    }
+
+    public class ExposPubuseAreaItem
+    {
+        public string ExposPubuseGbCdNm { get; set; } = string.Empty; // 전유, 공용
+        public string MainPurpsCdNm { get; set; } = string.Empty;     // 아파트, 제1종근린생활시설 등
+        public string EtcPurps { get; set; } = string.Empty;          // 아파트(도시형생활주택), 계단실, 복도 등
+        public double Area { get; set; }                              // 면적 (㎡)
+        public double AreaPyung => Math.Round(Area * 0.3025, 1);
+        public string DongNm { get; set; } = string.Empty;
+        public string HoNm { get; set; } = string.Empty;
+        public string FlrNoNm { get; set; } = string.Empty;
     }
 
     public class SafetyIssueItem
@@ -649,6 +675,162 @@ namespace OnHouseLocal.Services
                 info.RawJson = "{}";
             }
             info.Message = "건축물대장 표제부 조회가 완료되었습니다.";
+        }
+
+        /// <summary>
+        /// 국토교통부 건축HUB 전유공용면적 API 호출하여 호별 전유부/공용부 상세 내역을 수집
+        /// </summary>
+        public async Task<List<ExposPubuseAreaItem>> QueryExposPubuseAreaAsync(
+            string sigunguCd, string bjdongCd, string bun, string ji)
+        {
+            var list = new List<ExposPubuseAreaItem>();
+            try
+            {
+                if (string.IsNullOrEmpty(bun)) bun = "0000";
+                if (string.IsNullOrEmpty(ji)) ji = "0000";
+                bun = bun.PadLeft(4, '0');
+                ji = ji.PadLeft(4, '0');
+
+                string url = $"https://apis.data.go.kr/1613000/BldRgstHubService/getBrExposPubuseAreaInfo?serviceKey={ServiceKey}&sigunguCd={sigunguCd}&bjdongCd={bjdongCd}&platGbCd=0&bun={bun}&ji={ji}&numOfRows=1000&pageNo=1&_type=json";
+
+                var response = await _httpClient.GetAsync(url);
+                if (!response.IsSuccessStatusCode) return list;
+
+                string jsonStr = await response.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(jsonStr);
+                var root = doc.RootElement;
+                if (!root.TryGetProperty("response", out var respObj)) return list;
+                if (!respObj.TryGetProperty("body", out var body)) return list;
+                if (!body.TryGetProperty("items", out var itemsObj)) return list;
+                if (!itemsObj.TryGetProperty("item", out var items)) return list;
+
+                if (items.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var it in items.EnumerateArray())
+                    {
+                        var parsed = ParseExposPubuseItem(it);
+                        if (parsed != null) list.Add(parsed);
+                    }
+                }
+                else if (items.ValueKind == JsonValueKind.Object)
+                {
+                    var parsed = ParseExposPubuseItem(items);
+                    if (parsed != null) list.Add(parsed);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ExposPubuseArea Warning] {ex.Message}");
+            }
+            return list;
+        }
+
+        private static ExposPubuseAreaItem? ParseExposPubuseItem(JsonElement el)
+        {
+            try
+            {
+                string hoNm = GetJsonString(el, "hoNm");
+                string dongNm = GetJsonString(el, "dongNm");
+                string exposGb = GetJsonString(el, "exposPubuseGbCdNm");
+                string mainPurps = GetJsonString(el, "mainPurpsCdNm");
+                string etcPurps = GetJsonString(el, "etcPurps");
+                double area = GetJsonDouble(el, "area");
+                string flrNoNm = GetJsonString(el, "flrNoNm");
+
+                return new ExposPubuseAreaItem
+                {
+                    HoNm = hoNm,
+                    DongNm = dongNm,
+                    ExposPubuseGbCdNm = exposGb,
+                    MainPurpsCdNm = mainPurps,
+                    EtcPurps = etcPurps,
+                    Area = area,
+                    FlrNoNm = flrNoNm
+                };
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 건축물대장 표제부에 호별 전유공용면적 및 법정 대지권(대지지분)을 보완 결합
+        /// </summary>
+        public async Task EnrichWithExposPubuseAreaAsync(
+            BuildingLedgerInfo ledger, 
+            string sigunguCd, 
+            string bjdongCd, 
+            string bun, 
+            string ji, 
+            string targetHo, 
+            string targetDong)
+        {
+            if (ledger == null || string.IsNullOrWhiteSpace(targetHo)) return;
+
+            ledger.TargetHo = targetHo;
+            ledger.TargetDong = targetDong;
+
+            var allItems = await QueryExposPubuseAreaAsync(sigunguCd, bjdongCd, bun, ji);
+            if (allItems.Count == 0) return;
+
+            // 호수 숫자만 정제 (예: "802호" -> "802")
+            string hoDigits = Regex.Replace(targetHo, @"[^\d]", "");
+            if (string.IsNullOrEmpty(hoDigits)) hoDigits = targetHo;
+
+            var matchedItems = allItems.Where(x => 
+                x.HoNm == hoDigits || 
+                x.HoNm.TrimStart('0') == hoDigits.TrimStart('0') ||
+                x.HoNm.Contains(hoDigits)).ToList();
+
+            if (matchedItems.Count > 0)
+            {
+                ledger.ExposPubuseList = matchedItems;
+                ledger.UnitExclusiveArea = Math.Round(matchedItems.Where(x => x.ExposPubuseGbCdNm == "전유").Sum(x => x.Area), 2);
+                ledger.UnitCommonArea = Math.Round(matchedItems.Where(x => x.ExposPubuseGbCdNm == "공용").Sum(x => x.Area), 2);
+
+                // 법정 대지권(대지지분) 산출 (전체 대지면적 × (호별 전유면적 / 단지 전체 전유면적 합계))
+                if (ledger.PlatArea > 0 && ledger.UnitExclusiveArea > 0)
+                {
+                    double totalExposArea = allItems.Where(x => x.ExposPubuseGbCdNm == "전유").Sum(x => x.Area);
+                    if (totalExposArea <= 0)
+                    {
+                        int unitCount = ledger.HouseholdCount > 0 ? ledger.HouseholdCount : (ledger.HoCount > 0 ? ledger.HoCount : 50);
+                        totalExposArea = ledger.UnitExclusiveArea * unitCount;
+                    }
+
+                    double landShare = Math.Round(ledger.PlatArea * (ledger.UnitExclusiveArea / totalExposArea), 2);
+                    ledger.UnitLandShareArea = landShare;
+                    ledger.UnitLandShareRatio = $"{ledger.PlatArea:N2}분의 {landShare:N2}";
+                }
+
+                // RawJson 딕셔너리에 호별 상세 정보 융합 저장
+                try
+                {
+                    var dict = new Dictionary<string, object>();
+                    if (!string.IsNullOrWhiteSpace(ledger.RawJson) && ledger.RawJson.Trim().StartsWith("{"))
+                    {
+                        using var doc = JsonDocument.Parse(ledger.RawJson);
+                        foreach (var prop in doc.RootElement.EnumerateObject())
+                        {
+                            dict[prop.Name] = prop.Value.Clone();
+                        }
+                    }
+                    dict["targetHo"] = targetHo;
+                    dict["targetDong"] = targetDong;
+                    dict["unitExclusiveArea"] = ledger.UnitExclusiveArea;
+                    dict["unitCommonArea"] = ledger.UnitCommonArea;
+                    dict["unitContractArea"] = ledger.UnitContractArea;
+                    dict["unitLandShareArea"] = ledger.UnitLandShareArea;
+                    dict["unitLandShareRatio"] = ledger.UnitLandShareRatio;
+                    dict["exposPubuseList"] = ledger.ExposPubuseList;
+                    ledger.RawJson = JsonSerializer.Serialize(dict);
+                }
+                catch
+                {
+                    // ignore
+                }
+            }
         }
     }
 }
