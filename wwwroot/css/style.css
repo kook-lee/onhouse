@@ -33,6 +33,7 @@ body {
   line-height: 1.5;
   height: 100vh;
   overflow: hidden;
+  font-size: 15px; /* 시니어 중개사 최적화 기본 글자 크기 */
 }
 
 /* Toast Notifications */
@@ -380,14 +381,14 @@ body {
   border-bottom-color: #38bdf8;
 }
 
-/* Workspace */
+/* Workspace (상세필터 제거 후 2단 와이드 레이아웃) */
 .workspace {
   display: grid;
-  grid-template-columns: 280px 480px 1fr;
+  grid-template-columns: 520px 1fr;
   flex: 1;
   overflow: hidden;
-  gap: 14px;
-  padding: 14px;
+  gap: 16px;
+  padding: 16px;
 }
 
 /* Common Panels */
@@ -607,10 +608,10 @@ label {
 }
 
 .badge {
-  font-size: 0.72rem;
+  font-size: 0.85rem;
   font-weight: 700;
-  padding: 3px 7px;
-  border-radius: 4px;
+  padding: 4px 9px;
+  border-radius: 6px;
 }
 
 .badge-primary { background: #2563eb; color: #ffffff; }
@@ -618,29 +619,29 @@ label {
 .badge-danger { background: #dc2626; color: #ffffff; }
 
 .card-price {
-  font-weight: 800;
-  font-size: 1.15rem;
+  font-weight: 900;
+  font-size: 1.35rem;
   color: #fbbf24;
   letter-spacing: -0.5px;
 }
 
 .card-title {
-  font-size: 0.98rem;
-  font-weight: 700;
+  font-size: 1.15rem;
+  font-weight: 800;
   color: #ffffff;
   margin-bottom: 6px;
-  line-height: 1.4;
+  line-height: 1.45;
   word-break: break-all;
 }
 
 .card-address {
-  font-size: 0.8rem;
+  font-size: 0.92rem;
   color: #94a3b8;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
 }
 
 .card-features {
-  font-size: 0.78rem;
+  font-size: 0.88rem;
   color: #38bdf8;
   font-weight: 600;
 }

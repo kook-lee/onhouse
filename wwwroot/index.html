@@ -140,98 +140,27 @@
       </div>
     </div>
 
-    <!-- 2. Main Workspace -->
+    <!-- 2. Main Workspace (상세필터 제거 후 2단 와이드 레이아웃) -->
     <main class="workspace">
-      <!-- 2-1. Left: Search & Filters -->
-      <aside class="filter-panel">
-        <div class="panel-header">
-          <h2>🔍 상세 필터 검색</h2>
-        </div>
-        
-        <form id="filter-form">
-          <div class="form-group">
-            <label for="search-query">통합 검색</label>
-            <input type="text" id="search-query" class="input-text" placeholder="제목, 주소, 비번, 메모 검색...">
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="filter-property-type">매물 종류</label>
-              <select id="filter-property-type" class="select-box">
-                <option value="">전체</option>
-                <option value="원룸">원룸</option>
-                <option value="투룸/쓰리룸">투룸/쓰리룸</option>
-                <option value="오피스텔">오피스텔</option>
-                <option value="아파트">아파트</option>
-                <option value="상가/사무실">상가/사무실</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="filter-trans-type">거래 구분</label>
-              <select id="filter-trans-type" class="select-box">
-                <option value="">전체</option>
-                <option value="월세">월세</option>
-                <option value="전세">전세</option>
-                <option value="매매">매매</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="filter-max-deposit">최대 보증금 (만원)</label>
-              <input type="number" id="filter-max-deposit" class="input-text" placeholder="0: 무제한" step="100">
-            </div>
-            <div class="form-group">
-              <label for="filter-max-rent">최대 월세 (만원)</label>
-              <input type="number" id="filter-max-rent" class="input-text" placeholder="0: 무제한" step="5">
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="filter-status">공실 상태</label>
-            <select id="filter-status" class="select-box">
-              <option value="">전체</option>
-              <option value="공실">공실 (즉시입주)</option>
-              <option value="계약완료">계약완료</option>
-              <option value="보류">보류/거래중</option>
-            </select>
-          </div>
-
-          <div class="checkbox-group">
-            <label class="checkbox-label">
-              <input type="checkbox" id="chk-parking"> 🚗 주차 가능
-            </label>
-            <label class="checkbox-label">
-              <input type="checkbox" id="chk-elevator"> 🛗 엘리베이터 있음
-            </label>
-            <label class="checkbox-label">
-              <input type="checkbox" id="chk-pets"> 🐶 반려동물 협의 가능
-            </label>
-            <label class="checkbox-label">
-              <input type="checkbox" id="chk-exclude-violating"> 🛡️ 위반건축물 제외
-            </label>
-          </div>
-
-          <button type="submit" class="btn btn-primary full-width">필터 적용</button>
-          <button type="button" id="btn-reset-filter" class="btn btn-secondary full-width">초기화</button>
-        </form>
-      </aside>
-
-      <!-- 2-2. Middle: Property List / Direct Deals -->
+      <!-- 2-1. Left/Main: Property List / Naver Hub (확장된 520px) -->
       <section class="list-panel">
         <div class="panel-header">
           <div class="panel-title-wrap">
-            <h2 id="list-title">📋 등록된 매물 목록 (<span id="list-count">0</span>건)</h2>
-            <span id="view-mode-indicator" class="badge badge-primary">내 장부</span>
+            <h2 id="list-title" style="font-size: 1.3rem; font-weight: 800;">📋 등록된 매물 목록 (<span id="list-count">0</span>건)</h2>
+            <span id="view-mode-indicator" class="badge badge-primary" style="font-size: 0.9rem; padding: 4px 10px;">내 장부</span>
+          </div>
+
+          <!-- General Search Bar (내 장부 / 직거래 모드용) -->
+          <div id="general-search-wrap" style="margin-top: 10px; display: none;">
+            <input type="text" id="search-query" class="input-text" placeholder="🔍 제목, 주소, 비번, 메모 검색..." style="font-size: 15px; font-weight: 600; padding: 10px 14px;">
           </div>
 
           <!-- Bulk Action Bar (Direct Deal Mode) -->
           <div id="bulk-action-bar" class="bulk-action-bar" style="display: none;">
-            <label class="checkbox-label" style="font-weight: 700; color: #38bdf8;">
-              <input type="checkbox" id="check-select-all" /> 전체 선택 (<span id="selected-count">0</span>개)
+            <label class="checkbox-label" style="font-weight: 700; color: #38bdf8; font-size: 0.95rem;">
+              <input type="checkbox" id="check-select-all" style="transform: scale(1.2);" /> 전체 선택 (<span id="selected-count">0</span>개)
             </label>
-            <button id="btn-import-bulk" class="btn btn-sm btn-success" disabled>📥 선택한 매물 한번에 내 장부로 가져오기</button>
+            <button id="btn-import-bulk" class="btn btn-sm btn-success" disabled style="font-size: 0.9rem; font-weight: 700; padding: 8px 14px;">📥 선택한 매물 한번에 내 장부로 가져오기</button>
           </div>
         </div>
 
@@ -245,28 +174,38 @@
         </div>
 
         <!-- Naver Audit Hub View (Toggle View) -->
-        <div id="naver-list-wrap" style="display: none; flex-direction: column; height: 100%; gap: 10px;">
-          <!-- Naver KPI Summary Cards -->
+        <div id="naver-list-wrap" style="display: none; flex-direction: column; height: 100%; gap: 12px;">
+          <!-- [요청 반영] 전체매물 / 정상일치 위 실시간 키워드 검색창 -->
+          <div style="position: relative; width: 100%;">
+            <input type="text" id="naver-search-input" 
+                   placeholder="🔎 건물명, 동/호수, 지번, 금액, 매물번호 실시간 검색..." 
+                   style="width: 100%; padding: 13px 44px 13px 46px; font-size: 16px; font-weight: 700; background: #0f172a; border: 2px solid #3b82f6; border-radius: 10px; color: #ffffff; outline: none; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25);"
+                   oninput="onNaverSearchInput(this.value)">
+            <span style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); font-size: 20px; color: #60a5fa; pointer-events: none;">🔍</span>
+            <button type="button" onclick="clearNaverSearch()" id="btn-clear-naver-search" style="display: none; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: #334155; border: none; color: #cbd5e1; border-radius: 50%; width: 26px; height: 26px; cursor: pointer; font-size: 14px; font-weight: 800; line-height: 1;" title="검색어 지우기">✕</button>
+          </div>
+
+          <!-- Naver KPI Summary Cards (글자 및 숫자 확대) -->
           <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;">
-            <div class="naver-kpi-btn active" onclick="filterNaverListings('all')" id="kpi-btn-all" style="cursor: pointer; background: #1e293b; padding: 8px 10px; border-radius: 6px; border: 1px solid #38bdf8; text-align: center;">
-              <div style="font-size: 11px; color: #94a3b8;">전체 매물</div>
-              <div id="kpi-naver-total" style="font-size: 16px; font-weight: 800; color: #f8fafc; margin-top: 2px;">0</div>
+            <div class="naver-kpi-btn active" onclick="filterNaverListings('all')" id="kpi-btn-all" style="cursor: pointer; background: #1e293b; padding: 10px 8px; border-radius: 8px; border: 1.5px solid #38bdf8; text-align: center;">
+              <div style="font-size: 13px; font-weight: 700; color: #94a3b8;">전체 매물</div>
+              <div id="kpi-naver-total" style="font-size: 20px; font-weight: 900; color: #f8fafc; margin-top: 2px;">0</div>
             </div>
-            <div class="naver-kpi-btn" onclick="filterNaverListings('Safe')" id="kpi-btn-safe" style="cursor: pointer; background: rgba(16, 185, 129, 0.08); padding: 8px 10px; border-radius: 6px; border: 1px solid #10b981; text-align: center;">
-              <div style="font-size: 11px; color: #10b981;">✅ 정상 일치</div>
-              <div id="kpi-naver-safe" style="font-size: 16px; font-weight: 800; color: #10b981; margin-top: 2px;">0</div>
+            <div class="naver-kpi-btn" onclick="filterNaverListings('Safe')" id="kpi-btn-safe" style="cursor: pointer; background: rgba(16, 185, 129, 0.12); padding: 10px 8px; border-radius: 8px; border: 1.5px solid #10b981; text-align: center;">
+              <div style="font-size: 13px; font-weight: 700; color: #10b981;">✅ 정상 일치</div>
+              <div id="kpi-naver-safe" style="font-size: 20px; font-weight: 900; color: #10b981; margin-top: 2px;">0</div>
             </div>
-            <div class="naver-kpi-btn" onclick="filterNaverListings('Warning')" id="kpi-btn-warning" style="cursor: pointer; background: rgba(245, 158, 11, 0.08); padding: 8px 10px; border-radius: 6px; border: 1px solid #f59e0b; text-align: center;">
-              <div style="font-size: 11px; color: #f59e0b;">⚠️ 확인 요망</div>
-              <div id="kpi-naver-warning" style="font-size: 16px; font-weight: 800; color: #f59e0b; margin-top: 2px;">0</div>
+            <div class="naver-kpi-btn" onclick="filterNaverListings('Warning')" id="kpi-btn-warning" style="cursor: pointer; background: rgba(245, 158, 11, 0.12); padding: 10px 8px; border-radius: 8px; border: 1.5px solid #f59e0b; text-align: center;">
+              <div style="font-size: 13px; font-weight: 700; color: #f59e0b;">⚠️ 확인 요망</div>
+              <div id="kpi-naver-warning" style="font-size: 20px; font-weight: 900; color: #f59e0b; margin-top: 2px;">0</div>
             </div>
-            <div class="naver-kpi-btn" onclick="filterNaverListings('Danger')" id="kpi-btn-danger" style="cursor: pointer; background: rgba(239, 68, 68, 0.08); padding: 8px 10px; border-radius: 6px; border: 1px solid #ef4444; text-align: center;">
-              <div style="font-size: 11px; color: #ef4444;">🚨 과태료 위험</div>
-              <div id="kpi-naver-danger" style="font-size: 16px; font-weight: 800; color: #ef4444; margin-top: 2px;">0</div>
+            <div class="naver-kpi-btn" onclick="filterNaverListings('Danger')" id="kpi-btn-danger" style="cursor: pointer; background: rgba(239, 68, 68, 0.12); padding: 10px 8px; border-radius: 8px; border: 1.5px solid #ef4444; text-align: center;">
+              <div style="font-size: 13px; font-weight: 700; color: #ef4444;">🚨 과태료 위험</div>
+              <div id="kpi-naver-danger" style="font-size: 20px; font-weight: 900; color: #ef4444; margin-top: 2px;">0</div>
             </div>
-            <div class="naver-kpi-btn" onclick="filterNaverListings('Pending')" id="kpi-btn-pending" style="cursor: pointer; background: #1e293b; padding: 8px 10px; border-radius: 6px; border: 1px solid #475569; text-align: center;">
-              <div style="font-size: 11px; color: #cbd5e1;">⏳ 미검증</div>
-              <div id="kpi-naver-pending" style="font-size: 16px; font-weight: 800; color: #cbd5e1; margin-top: 2px;">0</div>
+            <div class="naver-kpi-btn" onclick="filterNaverListings('Pending')" id="kpi-btn-pending" style="cursor: pointer; background: #1e293b; padding: 10px 8px; border-radius: 8px; border: 1.5px solid #64748b; text-align: center;">
+              <div style="font-size: 13px; font-weight: 700; color: #cbd5e1;">⏳ 미검증</div>
+              <div id="kpi-naver-pending" style="font-size: 20px; font-weight: 900; color: #cbd5e1; margin-top: 2px;">0</div>
             </div>
           </div>
 
@@ -437,76 +376,76 @@
         <!-- Naver Listing Detail View (대장 대조 1:1 리포트) -->
         <div id="naver-detail" style="display: none;">
           <div id="naver-detail-header" style="margin-bottom: 12px;"></div>
-          <div id="naver-detail-title" class="detail-title" style="font-size: 1.15rem; margin-bottom: 4px;"></div>
-          <div id="naver-detail-price" class="detail-price" style="font-size: 1.25rem; margin-bottom: 14px;"></div>
+          <div id="naver-detail-title" class="detail-title" style="font-size: 1.45rem; font-weight: 800; margin-bottom: 6px; line-height: 1.35;"></div>
+          <div id="naver-detail-price" class="detail-price" style="font-size: 1.65rem; font-weight: 900; color: #fbbf24; margin-bottom: 16px;"></div>
 
-          <!-- 🏢 공동주택 공시가격 & 🛡️ HUG 안심전세 126% 보증보험 진단 위젯 -->
-          <div id="naver-housing-price-card" style="display: none; background: linear-gradient(135deg, #0f2b1d 0%, #1e293b 100%); border: 1px solid #059669; border-radius: 8px; padding: 12px 14px; margin-bottom: 14px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid rgba(5, 150, 105, 0.3); padding-bottom: 6px;">
-              <span style="font-size: 12px; font-weight: 800; color: #34d399; display: flex; align-items: center; gap: 6px;">
-                <span>🏢</span> 공동주택 공시가격 & HUG 안심전세
+          <!-- 🏢 공동주택 공시가격 & 🛡️ HUG 안심전세 126% 보증보험 진단 위젯 (시니어 최적화) -->
+          <div id="naver-housing-price-card" style="display: none; background: linear-gradient(135deg, #0f2b1d 0%, #1e293b 100%); border: 1.5px solid #059669; border-radius: 10px; padding: 14px 18px; margin-bottom: 16px; box-shadow: 0 4px 16px rgba(5, 150, 105, 0.15);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(5, 150, 105, 0.35); padding-bottom: 8px;">
+              <span style="font-size: 15px; font-weight: 800; color: #34d399; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 18px;">🏢</span> 공동주택 공시가격 & HUG 안심전세 126%
               </span>
-              <span id="naver-public-price-year-badge" class="badge" style="background: #065f46; color: #a7f3d0; font-size: 10px;"></span>
+              <span id="naver-public-price-year-badge" class="badge" style="background: #065f46; color: #a7f3d0; font-size: 12px; font-weight: 700; padding: 4px 8px;"></span>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; margin-bottom: 8px;">
-              <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 10px; border-radius: 6px;">
-                <div style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">공동주택 공시가격</div>
-                <div id="naver-public-price-display" style="font-size: 14px; font-weight: 800; color: #f8fafc;">-</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+              <div style="background: rgba(15, 23, 42, 0.7); padding: 10px 14px; border-radius: 8px; border: 1px solid #1e3a8a;">
+                <div style="font-size: 13px; font-weight: 600; color: #94a3b8; margin-bottom: 4px;">공동주택 공시가격</div>
+                <div id="naver-public-price-display" style="font-size: 20px; font-weight: 900; color: #f8fafc;">-</div>
               </div>
-              <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 10px; border-radius: 6px;">
-                <div style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">🛡️ HUG 126% 한도</div>
-                <div id="naver-hug-limit-display" style="font-size: 14px; font-weight: 800; color: #38bdf8;">-</div>
+              <div style="background: rgba(15, 23, 42, 0.7); padding: 10px 14px; border-radius: 8px; border: 1px solid #065f46;">
+                <div style="font-size: 13px; font-weight: 600; color: #94a3b8; margin-bottom: 4px;">🛡️ HUG 126% 보증한도</div>
+                <div id="naver-hug-limit-display" style="font-size: 20px; font-weight: 900; color: #38bdf8;">-</div>
               </div>
             </div>
-            <div id="naver-hug-status-box" style="font-size: 11px; padding: 6px 10px; border-radius: 6px; font-weight: 600;"></div>
+            <div id="naver-hug-status-box" style="font-size: 14px; padding: 8px 12px; border-radius: 6px; font-weight: 700; line-height: 1.5;"></div>
           </div>
 
           <!-- 실시간 종합 대조 배너 -->
-          <div id="naver-detail-banner" style="padding: 12px 14px; border-radius: 8px; margin-bottom: 14px; font-weight: 700; font-size: 13px;"></div>
+          <div id="naver-detail-banner" style="padding: 14px 18px; border-radius: 10px; margin-bottom: 16px; font-weight: 800; font-size: 15px; line-height: 1.5;"></div>
 
           <!-- 핵심 대조표 -->
-          <div style="margin-bottom: 14px; border: 1px solid #334155; border-radius: 8px; overflow: hidden;">
-            <div style="background: #1e293b; padding: 8px 12px; font-size: 12px; font-weight: 700; color: #94a3b8;">
-              ⚖️ 네이버 등록 정보 vs 건축물대장 1:1 대조 분석표
+          <div style="margin-bottom: 16px; border: 1px solid #334155; border-radius: 10px; overflow: hidden;">
+            <div style="background: #1e293b; padding: 10px 16px; font-size: 14px; font-weight: 800; color: #cbd5e1; display: flex; align-items: center; gap: 6px;">
+              <span>⚖️</span> 네이버 광고 정보 vs 건축물대장 1:1 대조 분석표
             </div>
-            <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-              <thead style="background: #0f172a; color: #64748b; border-bottom: 1px solid #334155;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+              <thead style="background: #0f172a; color: #94a3b8; border-bottom: 1px solid #334155;">
                 <tr>
-                  <th style="padding: 8px 10px; text-align: left;">항목</th>
-                  <th style="padding: 8px 10px; text-align: left;">네이버 광고</th>
-                  <th style="padding: 8px 10px; text-align: left;">건축물대장</th>
-                  <th style="padding: 8px 10px; text-align: left;">판정</th>
+                  <th style="padding: 10px 14px; text-align: left; font-weight: 700;">항목</th>
+                  <th style="padding: 10px 14px; text-align: left; font-weight: 700;">네이버 광고</th>
+                  <th style="padding: 10px 14px; text-align: left; font-weight: 700;">건축물대장</th>
+                  <th style="padding: 10px 14px; text-align: left; font-weight: 700;">판정</th>
                 </tr>
               </thead>
-              <tbody id="naver-detail-discrepancy-tbody" style="background: #0f172a;">
+              <tbody id="naver-detail-discrepancy-tbody" style="background: #0b1120;">
               </tbody>
             </table>
           </div>
 
           <!-- 네이버 vs 대장 요약 카드 -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
-            <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px 12px; font-size: 11px;">
-              <div style="font-weight: 700; color: #6ee7b7; margin-bottom: 6px;">🟢 네이버 등록 정보</div>
-              <div id="naver-detail-specs" style="color: #cbd5e1; display: flex; flex-direction: column; gap: 4px;"></div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px;">
+            <div style="background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 16px; font-size: 13px;">
+              <div style="font-weight: 800; font-size: 14px; color: #6ee7b7; margin-bottom: 8px;">🟢 네이버 등록 정보</div>
+              <div id="naver-detail-specs" style="color: #cbd5e1; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px;"></div>
             </div>
-            <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px 12px; font-size: 11px;">
-              <div style="font-weight: 700; color: #a5b4fc; margin-bottom: 6px;">🏛️ 공공 건축물대장</div>
-              <div id="naver-detail-ledger" style="color: #cbd5e1; display: flex; flex-direction: column; gap: 4px;"></div>
+            <div style="background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 16px; font-size: 13px;">
+              <div style="font-weight: 800; font-size: 14px; color: #a5b4fc; margin-bottom: 8px;">🏛️ 공공 건축물대장</div>
+              <div id="naver-detail-ledger" style="color: #cbd5e1; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px;"></div>
             </div>
           </div>
 
           <!-- 하단 액션 버튼 그룹 -->
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="btn-naver-audit-single" class="btn btn-accent" style="flex: 1; padding: 10px; font-weight: 700; font-size: 13px;">
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button id="btn-naver-audit-single" class="btn btn-accent" style="flex: 1; padding: 12px 16px; font-weight: 800; font-size: 14px;">
               ⚡ 이 매물 대장 재검증
             </button>
-            <button id="btn-naver-view-ledger-modal" type="button" class="btn btn-outline" onclick="openCurrentListingLedgerModal()" style="border-color: #6366f1; color: #a5b4fc; font-weight: 700; font-size: 12px; padding: 10px 14px; display: flex; align-items: center; gap: 4px;">
+            <button id="btn-naver-view-ledger-modal" type="button" class="btn btn-outline" onclick="openCurrentListingLedgerModal()" style="border-color: #6366f1; color: #c7d2fe; font-weight: 800; font-size: 14px; padding: 12px 18px; display: flex; align-items: center; gap: 6px; background: rgba(99, 102, 241, 0.15);">
               🏛️ 대장 전체보기
             </button>
-            <button id="btn-naver-import-prop" class="btn btn-primary" style="flex: 1; padding: 10px; font-weight: 700; font-size: 13px; background: #03c75a; border-color: #03c75a;">
+            <button id="btn-naver-import-prop" class="btn btn-primary" style="flex: 1; padding: 12px 16px; font-weight: 800; font-size: 14px; background: #059669; border-color: #059669;">
               📥 내 장부로 저장
             </button>
-            <a id="btn-naver-web-link" href="#" target="_blank" class="btn btn-outline" style="padding: 10px 14px; text-decoration: none; font-size: 12px; border-color: #475569; color: #cbd5e1;">
+            <a id="btn-naver-web-link" href="#" target="_blank" class="btn btn-outline" style="padding: 12px 16px; text-decoration: none; font-size: 13px; font-weight: 700; border-color: #475569; color: #cbd5e1;">
               🌐 네이버 원문 &gt;
             </a>
           </div>
@@ -1187,70 +1126,70 @@ https://new.land.naver.com/rooms?articleNo=2647844806"></textarea>
 
         <!-- 1. 기본 및 소재지 정보 -->
         <div id="sec-basic" style="border: 1px solid #334155; border-radius: 8px; overflow: hidden;">
-          <div style="background: #1e293b; padding: 8px 14px; font-weight: 700; font-size: 13px; color: #93c5fd; display: flex; align-items: center; gap: 6px;">
+          <div style="background: #1e293b; padding: 10px 16px; font-weight: 800; font-size: 15px; color: #93c5fd; display: flex; align-items: center; gap: 6px;">
             <span>📍</span> 1. 기본 사항 및 소재지
           </div>
-          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 14.5px;">
             <tbody id="ledger-table-basic" style="background: #0b1120;"></tbody>
           </table>
         </div>
 
         <!-- 2. 대지면적, 건축면적, 연면적 및 건폐율/용적률 -->
         <div id="sec-area" style="border: 1px solid #334155; border-radius: 8px; overflow: hidden;">
-          <div style="background: #1e293b; padding: 8px 14px; font-weight: 700; font-size: 13px; color: #86efac; display: flex; align-items: center; gap: 6px;">
+          <div style="background: #1e293b; padding: 10px 16px; font-weight: 800; font-size: 15px; color: #86efac; display: flex; align-items: center; gap: 6px;">
             <span>📐</span> 2. 대지면적 및 건축 규모 (표제부 법정 기준)
           </div>
-          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 14.5px;">
             <tbody id="ledger-table-area" style="background: #0b1120;"></tbody>
           </table>
         </div>
 
         <!-- 3. 주구조, 지붕, 높이 및 설비 (승강기/주차대수) -->
         <div id="sec-structure" style="border: 1px solid #334155; border-radius: 8px; overflow: hidden;">
-          <div style="background: #1e293b; padding: 8px 14px; font-weight: 700; font-size: 13px; color: #fde047; display: flex; align-items: center; gap: 6px;">
+          <div style="background: #1e293b; padding: 10px 16px; font-weight: 800; font-size: 15px; color: #fde047; display: flex; align-items: center; gap: 6px;">
             <span>🏗️</span> 3. 건축물 주구조 및 주차/승강기 설비
           </div>
-          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 14.5px;">
             <tbody id="ledger-table-structure" style="background: #0b1120;"></tbody>
           </table>
         </div>
 
         <!-- 4. 인허가 및 위반건축물 여부 -->
         <div id="sec-admin" style="border: 1px solid #334155; border-radius: 8px; overflow: hidden;">
-          <div style="background: #1e293b; padding: 8px 14px; font-weight: 700; font-size: 13px; color: #fca5a5; display: flex; align-items: center; gap: 6px;">
+          <div style="background: #1e293b; padding: 10px 16px; font-weight: 800; font-size: 15px; color: #fca5a5; display: flex; align-items: center; gap: 6px;">
             <span>⚖️</span> 4. 행정 처분 (위반건축물) 및 인허가 일자
           </div>
-          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 14.5px;">
             <tbody id="ledger-table-admin" style="background: #0b1120;"></tbody>
           </table>
         </div>
 
         <!-- 5. VWorld 공동주택 공시가격 & HUG 안심전세 126% 정밀 분석 -->
         <div id="sec-price" style="border: 1px solid #059669; border-radius: 8px; overflow: hidden; background: #064e3b15;">
-          <div style="background: #064e3b; padding: 8px 14px; font-weight: 700; font-size: 13px; color: #6ee7b7; display: flex; justify-content: space-between; align-items: center;">
+          <div style="background: #064e3b; padding: 10px 16px; font-weight: 800; font-size: 15px; color: #6ee7b7; display: flex; justify-content: space-between; align-items: center;">
             <span style="display: flex; align-items: center; gap: 6px;">
               <span>🛡️</span> 5. 국토교통부 공동주택 공시가격 & HUG 안심전세 126% 보증보험
             </span>
-            <span style="font-size: 11px; color: #a7f3d0; font-weight: normal;">공시가 × 140% × 90% = 공시가 × 126%</span>
+            <span style="font-size: 12px; color: #a7f3d0; font-weight: 600;">공시가 × 140% × 90% = 공시가 × 126%</span>
           </div>
-          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 14.5px;">
             <tbody id="ledger-table-price" style="background: #0b1120;"></tbody>
           </table>
         </div>
       </div>
 
-      <div class="modal-footer" style="flex-shrink: 0; background: #1e293b; padding: 12px 20px; border-top: 1px solid #334155; display: flex; justify-content: space-between; align-items: center;">
-        <div style="font-size: 11px; color: #64748b;">
+      <div class="modal-footer" style="flex-shrink: 0; background: #1e293b; padding: 14px 22px; border-top: 1px solid #334155; display: flex; justify-content: space-between; align-items: center;">
+        <div style="font-size: 12px; color: #94a3b8;">
           * 국토교통부 건축HUB 및 VWorld 개방데이터 기반 실시간 전산 조회본입니다.
         </div>
-        <div style="display: flex; gap: 8px;">
-          <button type="button" class="btn btn-secondary" onclick="copyLedgerModalSummary()" style="font-size: 12px; font-weight: 600; padding: 8px 14px;">
+        <div style="display: flex; gap: 10px;">
+          <button type="button" class="btn btn-secondary" onclick="copyLedgerModalSummary()" style="font-size: 13px; font-weight: 700; padding: 9px 16px;">
             📋 대장 요약 복사
           </button>
-          <button type="button" class="btn btn-primary" onclick="printLedgerModal()" style="font-size: 12px; font-weight: 700; padding: 8px 16px; background: #2563eb; border-color: #2563eb;">
+          <button type="button" class="btn btn-primary" onclick="printLedgerModal()" style="font-size: 13px; font-weight: 800; padding: 9px 18px; background: #2563eb; border-color: #2563eb;">
             🖨️ 대장 인쇄 / PDF 출력
           </button>
-          <button type="button" class="btn btn-outline" onclick="closeLedgerFullModal()" style="font-size: 12px; padding: 8px 14px; border-color: #475569; color: #cbd5e1;">
+          <button type="button" class="btn btn-outline" onclick="closeLedgerFullModal()" style="font-size: 13px; font-weight: 700; padding: 9px 16px; border-color: #475569; color: #cbd5e1;">
             닫기
           </button>
         </div>
@@ -1259,6 +1198,6 @@ https://new.land.naver.com/rooms?articleNo=2647844806"></textarea>
   </div>
 
   <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-  <script src="js/app.js?v=20260919_vworld_scroll_v2"></script>
+  <script src="js/app.js?v=20260919_senior_filter_v5"></script>
 </body>
 </html>

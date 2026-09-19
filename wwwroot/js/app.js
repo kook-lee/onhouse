@@ -569,16 +569,16 @@ function clearDetail() {
 
 // 5. Filter Search
 async function applyFilter() {
-  const query = document.getElementById('search-query').value.trim();
-  const propertyType = document.getElementById('filter-property-type').value;
-  const transactionType = document.getElementById('filter-trans-type').value;
-  const maxDeposit = parseInt(document.getElementById('filter-max-deposit').value) || 0;
-  const maxRent = parseInt(document.getElementById('filter-max-rent').value) || 0;
-  const status = document.getElementById('filter-status').value;
-  const hasParking = document.getElementById('chk-parking').checked;
-  const hasElevator = document.getElementById('chk-elevator').checked;
-  const allowsPets = document.getElementById('chk-pets').checked;
-  const excludeViolating = document.getElementById('chk-exclude-violating').checked;
+  const query = (document.getElementById('search-query')?.value || '').trim();
+  const propertyType = document.getElementById('filter-property-type')?.value || '';
+  const transactionType = document.getElementById('filter-trans-type')?.value || '';
+  const maxDeposit = parseInt(document.getElementById('filter-max-deposit')?.value || '0') || 0;
+  const maxRent = parseInt(document.getElementById('filter-max-rent')?.value || '0') || 0;
+  const status = document.getElementById('filter-status')?.value || '';
+  const hasParking = document.getElementById('chk-parking')?.checked || false;
+  const hasElevator = document.getElementById('chk-elevator')?.checked || false;
+  const allowsPets = document.getElementById('chk-pets')?.checked || false;
+  const excludeViolating = document.getElementById('chk-exclude-violating')?.checked || false;
 
   if (currentViewMode === 'properties') {
     if (!currentUser) return;
@@ -2621,10 +2621,46 @@ window.loadNaverListings = async function() {
     if (pendingEl) pendingEl.textContent = pendingCount;
     if (navBadge) navBadge.textContent = currentNaverListings.length;
 
-    renderNaverList(currentNaverListings);
+    applyNaverFilters();
   } catch (err) {
     console.error('loadNaverListings error:', err);
   }
+};
+
+let currentNaverSearchKeyword = '';
+
+window.onNaverSearchInput = function(val) {
+  currentNaverSearchKeyword = val || '';
+  const clearBtn = document.getElementById('btn-clear-naver-search');
+  if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
+  applyNaverFilters();
+};
+
+window.clearNaverSearch = function() {
+  const inp = document.getElementById('naver-search-input');
+  if (inp) inp.value = '';
+  window.onNaverSearchInput('');
+};
+
+window.applyNaverFilters = function() {
+  let filtered = currentNaverListings;
+  if (currentNaverFilter && currentNaverFilter !== 'all') {
+    filtered = filtered.filter(x => x.ledgerStatus === currentNaverFilter);
+  }
+  if (currentNaverSearchKeyword && currentNaverSearchKeyword.trim()) {
+    const q = currentNaverSearchKeyword.trim().toLowerCase();
+    filtered = filtered.filter(x => {
+      const matchName = (x.articleName || '').toLowerCase().includes(q);
+      const matchAddr = (x.address || '').toLowerCase().includes(q);
+      const matchNum = (x.articleNumber || '').toString().includes(q);
+      const matchPrice = (x.priceDisplay || '').toLowerCase().includes(q);
+      const matchType = (x.tradeType || '').toLowerCase().includes(q);
+      const matchStruct = (x.buildingStructure || '').toLowerCase().includes(q);
+      const matchFloor = (x.floorInfo || '').toLowerCase().includes(q);
+      return matchName || matchAddr || matchNum || matchPrice || matchType || matchStruct || matchFloor;
+    });
+  }
+  renderNaverList(filtered);
 };
 
 // 필터링 버튼 클릭 (all, Safe, Warning, Danger, Pending)
@@ -2634,11 +2670,7 @@ window.filterNaverListings = function(status) {
   const btn = document.getElementById(`kpi-btn-${status.toLowerCase()}`);
   if (btn) btn.classList.add('active');
 
-  let filtered = currentNaverListings;
-  if (status !== 'all') {
-    filtered = currentNaverListings.filter(x => x.ledgerStatus === status);
-  }
-  renderNaverList(filtered);
+  applyNaverFilters();
 };
 
 // 네이버 매물 카드 그리드 렌더링
@@ -2656,10 +2688,13 @@ window.renderNaverList = function(list) {
     container.innerHTML = `
       <div style="padding: 40px 20px; text-align: center; color: #94a3b8; background: #0f172a; border-radius: 8px; border: 1px dashed #334155; margin-top: 10px;">
         <div style="font-size: 36px; margin-bottom: 12px;">🏢</div>
-        <div style="font-size: 15px; font-weight: 700; color: #f8fafc; margin-bottom: 6px;">등록된 이실장(AI실장+) 매물이 없습니다</div>
-        <div style="font-size: 13px; color: #64748b; margin-bottom: 16px;">
-          이실장(aipartner.plus) 계정으로 로그인하시거나, 올리신 매물 번호/링크들을 복사하여 붙여넣으세요.
+        <div style="font-size: 16px; font-weight: 800; color: #f8fafc; margin-bottom: 6px;">
+          ${currentNaverSearchKeyword ? `'${escapeHtml(currentNaverSearchKeyword)}' 검색 조건과 일치하는 매물이 없습니다` : '등록된 이실장(AI실장+) 매물이 없습니다'}
         </div>
+        <div style="font-size: 14px; color: #64748b; margin-bottom: 16px;">
+          ${currentNaverSearchKeyword ? '검색어를 변경하시거나 ✕ 버튼을 눌러 전체 매물을 확인하세요.' : '이실장(aipartner.plus) 계정으로 로그인하시거나, 올리신 매물 번호/링크들을 복사하여 붙여넣으세요.'}
+        </div>
+        ${!currentNaverSearchKeyword ? `
         <div style="display: flex; justify-content: center; gap: 10px;">
           <button type="button" class="btn btn-primary" onclick="openNaverInspectModal('login')" style="background: #03c75a; border-color: #03c75a; font-weight: 700; font-size: 13px; padding: 10px 18px;">
             🤖 이실장(AI실장+) 로그인 및 계정 연동
@@ -2667,7 +2702,10 @@ window.renderNaverList = function(list) {
           <button type="button" class="btn btn-secondary" onclick="openNaverInspectModal('bulk')" style="font-size: 13px; padding: 10px 18px;">
             ➕ 이실장 매물 일괄 붙여넣기
           </button>
-        </div>
+        </div>` : `
+        <button type="button" class="btn btn-secondary" onclick="clearNaverSearch()" style="font-size: 13px; padding: 8px 16px;">
+          ✕ 검색어 초기화
+        </button>`}
       </div>
     `;
     clearDetail();
@@ -2682,45 +2720,45 @@ window.renderNaverList = function(list) {
     let badgeHtml = '';
     let borderColor = '#334155';
     if (item.ledgerStatus === 'Safe') {
-      badgeHtml = '<span class="badge" style="background: #065f46; color: #6ee7b7; font-weight: 700;">✅ 대장 정상 일치</span>';
+      badgeHtml = '<span class="badge" style="background: #065f46; color: #6ee7b7; font-weight: 800; font-size: 0.85rem; padding: 4px 8px;">✅ 대장 정상 일치</span>';
       borderColor = '#059669';
     } else if (item.ledgerStatus === 'Warning') {
-      badgeHtml = '<span class="badge" style="background: #78350f; color: #fde68a; font-weight: 700;">⚠️ 주의 요망</span>';
+      badgeHtml = '<span class="badge" style="background: #78350f; color: #fde68a; font-weight: 800; font-size: 0.85rem; padding: 4px 8px;">⚠️ 주의 요망</span>';
       borderColor = '#d97706';
     } else if (item.ledgerStatus === 'Danger') {
-      badgeHtml = '<span class="badge" style="background: #7f1d1d; color: #fca5a5; font-weight: 700;">🚨 과태료 위험</span>';
+      badgeHtml = '<span class="badge" style="background: #7f1d1d; color: #fca5a5; font-weight: 800; font-size: 0.85rem; padding: 4px 8px;">🚨 과태료 위험</span>';
       borderColor = '#dc2626';
     } else {
-      badgeHtml = '<span class="badge" style="background: #1e293b; color: #94a3b8;">⏳ 미검증</span>';
+      badgeHtml = '<span class="badge" style="background: #1e293b; color: #94a3b8; font-weight: 700; font-size: 0.85rem; padding: 4px 8px;">⏳ 미검증</span>';
     }
 
     const isChecked = selectedNaverArticleIds.has(item.id);
-    const importedBadge = item.isImported ? '<span class="badge" style="background: #1e1b4b; color: #a5b4fc;">📥 장부 저장됨</span>' : '';
+    const importedBadge = item.isImported ? '<span class="badge" style="background: #1e1b4b; color: #a5b4fc; font-size: 0.85rem; padding: 4px 8px;">📥 장부 저장됨</span>' : '';
 
     card.style.borderColor = borderColor;
     card.innerHTML = `
       <div class="card-top">
-        <div class="badges" style="align-items: center; flex-wrap: wrap; gap: 4px;">
-          <input type="checkbox" class="naver-item-checkbox" data-id="${item.id}" ${isChecked ? 'checked' : ''} style="cursor: pointer; transform: scale(1.15); margin-right: 4px;" />
-          <span class="badge" style="background: #03c75a; color: #fff; font-weight: 700;">N부동산</span>
+        <div class="badges" style="align-items: center; flex-wrap: wrap; gap: 6px;">
+          <input type="checkbox" class="naver-item-checkbox" data-id="${item.id}" ${isChecked ? 'checked' : ''} style="cursor: pointer; transform: scale(1.3); margin-right: 6px;" />
+          <span class="badge" style="background: #03c75a; color: #fff; font-weight: 800; font-size: 0.85rem; padding: 4px 8px;">N부동산</span>
           ${badgeHtml}
           ${importedBadge}
         </div>
-        <div class="card-price">${escapeHtml(item.priceDisplay || '-')}</div>
+        <div class="card-price" style="font-size: 1.35rem; font-weight: 900; color: #fbbf24;">${escapeHtml(item.priceDisplay || '-')}</div>
       </div>
-      <div class="card-title">${escapeHtml(item.articleName || '매물 ' + item.articleNumber)}</div>
-      <div style="font-size: 0.8rem; color: #cbd5e1; margin: 6px 0; display: flex; gap: 8px; flex-wrap: wrap;">
-        <span>🛗 승강기 ${item.hasElevator ? '있음' : '없음'}</span>
-        <span>🚗 주차 ${item.totalParking}대</span>
-        <span>📐 전용 ${item.areaM2 ? item.areaM2.toFixed(1) + '㎡' : '-'}</span>
-        ${item.platArea > 0 ? `<span style="color: #86efac; font-weight: 600;">🌱 대지 ${item.platArea.toFixed(1)}㎡(${(item.platArea * 0.3025).toFixed(1)}평)</span>` : ''}
-        ${item.publicPrice > 0 ? `<span style="color: #fde047; font-weight: 700;">🏢 공시가 ${(item.publicPrice / 10000).toLocaleString()}만</span>` : ''}
+      <div class="card-title" style="font-size: 1.15rem; font-weight: 800; color: #ffffff; margin: 6px 0 8px 0;">${escapeHtml(item.articleName || '매물 ' + item.articleNumber)}</div>
+      <div style="font-size: 0.95rem; color: #e2e8f0; margin: 8px 0; display: flex; gap: 10px; flex-wrap: wrap; line-height: 1.6;">
+        <span>🛗 승강기 ${item.hasElevator ? '<b style="color: #34d399;">있음</b>' : '없음'}</span>
+        <span>🚗 주차 <b>${item.totalParking}대</b></span>
+        <span>📐 전용 <b>${item.areaM2 ? item.areaM2.toFixed(1) + '㎡' : '-'}</b></span>
+        ${item.platArea > 0 ? `<span style="color: #86efac; font-weight: 700;">🌱 대지 ${item.platArea.toFixed(1)}㎡(${(item.platArea * 0.3025).toFixed(1)}평)</span>` : ''}
+        ${item.publicPrice > 0 ? `<span style="color: #fde047; font-weight: 800;">🏢 공시가 ${(item.publicPrice / 10000).toLocaleString()}만</span>` : ''}
       </div>
-      <div style="display: flex; gap: 6px; margin-top: 8px;">
-        <button class="btn btn-sm btn-accent" style="flex: 1; font-size: 11px; padding: 4px;" onclick="event.stopPropagation(); auditSingleNaverListing(${item.id})">
+      <div style="display: flex; gap: 8px; margin-top: 10px;">
+        <button class="btn btn-sm btn-accent" style="flex: 1; font-size: 13px; font-weight: 800; padding: 7px 10px;" onclick="event.stopPropagation(); auditSingleNaverListing(${item.id})">
           ⚡ 1초 대장 대조
         </button>
-        <button class="btn btn-sm btn-secondary" style="flex: 1; font-size: 11px; padding: 4px;" onclick="event.stopPropagation(); importNaverListingToProperties(${item.id})">
+        <button class="btn btn-sm btn-secondary" style="flex: 1; font-size: 13px; font-weight: 800; padding: 7px 10px;" onclick="event.stopPropagation(); importNaverListingToProperties(${item.id})">
           📥 내 장부로 저장
         </button>
       </div>
@@ -2895,15 +2933,15 @@ window.selectNaverListing = function(id) {
 
       return `
         <tr style="border-bottom: 1px solid #1e293b; ${rowBg}">
-          <td style="padding: 8px 10px; font-weight: 600; color: #f8fafc;">${escapeHtml(d.ItemName || d.itemName)}</td>
-          <td style="padding: 8px 10px; color: #cbd5e1;">${escapeHtml(d.NaverValue || d.naverValue || '-')}</td>
-          <td style="padding: 8px 10px; color: #cbd5e1;">${escapeHtml(d.LedgerValue || d.ledgerValue || '-')}</td>
-          <td style="padding: 8px 10px;">${badge}</td>
+          <td style="padding: 10px 14px; font-weight: 700; color: #f8fafc; font-size: 14.5px;">${escapeHtml(d.ItemName || d.itemName)}</td>
+          <td style="padding: 10px 14px; color: #cbd5e1; font-size: 14px;">${escapeHtml(d.NaverValue || d.naverValue || '-')}</td>
+          <td style="padding: 10px 14px; color: #e2e8f0; font-size: 14px; font-weight: 600;">${escapeHtml(d.LedgerValue || d.ledgerValue || '-')}</td>
+          <td style="padding: 10px 14px; font-size: 14px;">${badge}</td>
         </tr>
       `;
     }).join('');
   } else {
-    tbody.innerHTML = `<tr><td colspan="4" style="padding: 16px; text-align: center; color: #64748b;">아직 대장 대조가 수행되지 않았습니다.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" style="padding: 18px; text-align: center; color: #64748b; font-size: 14px;">아직 대장 대조가 수행되지 않았습니다.</td></tr>`;
   }
 
   let raw = {};
@@ -3012,26 +3050,26 @@ window.openLedgerFullModal = function(item) {
 
   // 상단 뱃지 바
   let badgesHtml = '';
-  if (item.ledgerStatus === 'Safe') badgesHtml += '<span class="badge" style="background: #065f46; color: #6ee7b7; font-weight: 700; padding: 4px 8px;">✅ 정상 일치</span>';
-  else if (item.ledgerStatus === 'Warning') badgesHtml += '<span class="badge" style="background: #78350f; color: #fde68a; font-weight: 700; padding: 4px 8px;">⚠️ 주의 요망</span>';
-  else if (item.ledgerStatus === 'Danger') badgesHtml += '<span class="badge" style="background: #7f1d1d; color: #fca5a5; font-weight: 700; padding: 4px 8px;">🚨 과태료 위험</span>';
+  if (item.ledgerStatus === 'Safe') badgesHtml += '<span class="badge" style="background: #065f46; color: #6ee7b7; font-weight: 800; font-size: 13px; padding: 5px 10px;">✅ 정상 일치</span>';
+  else if (item.ledgerStatus === 'Warning') badgesHtml += '<span class="badge" style="background: #78350f; color: #fde68a; font-weight: 800; font-size: 13px; padding: 5px 10px;">⚠️ 주의 요망</span>';
+  else if (item.ledgerStatus === 'Danger') badgesHtml += '<span class="badge" style="background: #7f1d1d; color: #fca5a5; font-weight: 800; font-size: 13px; padding: 5px 10px;">🚨 과태료 위험</span>';
   
   const itatYn = raw.itgrtItatBldYn === '1' || raw.itatBldYn === '1';
   badgesHtml += itatYn 
-    ? '<span class="badge" style="background: #991b1b; color: #fee2e2; font-weight: 700; padding: 4px 8px;">🚨 위반건축물 등재</span>'
-    : '<span class="badge" style="background: #064e3b; color: #a7f3d0; font-weight: 700; padding: 4px 8px;">✅ 위반건축물 없음</span>';
+    ? '<span class="badge" style="background: #991b1b; color: #fee2e2; font-weight: 800; font-size: 13px; padding: 5px 10px;">🚨 위반건축물 등재</span>'
+    : '<span class="badge" style="background: #064e3b; color: #a7f3d0; font-weight: 800; font-size: 13px; padding: 5px 10px;">✅ 위반건축물 없음</span>';
 
   if (raw.regstrGbCdNm) {
-    badgesHtml += `<span class="badge" style="background: #1e293b; color: #cbd5e1; padding: 4px 8px;">${escapeHtml(raw.regstrGbCdNm)}건축물</span>`;
+    badgesHtml += `<span class="badge" style="background: #1e293b; color: #cbd5e1; font-size: 13px; padding: 5px 10px;">${escapeHtml(raw.regstrGbCdNm)}건축물</span>`;
   }
   if (item.publicPrice > 0) {
-    badgesHtml += `<span class="badge" style="background: #1e1b4b; color: #c7d2fe; font-weight: 700; padding: 4px 8px;">🏢 공시가격 ${formatWonPrice(item.publicPrice)}</span>`;
-    badgesHtml += `<span class="badge" style="background: #042f2e; color: #5eead4; font-weight: 700; padding: 4px 8px;">🛡️ HUG 126% 한도 ${formatWonPrice(item.hugGuaranteeLimit || Math.round(item.publicPrice * 1.26))}</span>`;
+    badgesHtml += `<span class="badge" style="background: #1e1b4b; color: #c7d2fe; font-weight: 800; font-size: 13px; padding: 5px 10px;">🏢 공시가격 ${formatWonPrice(item.publicPrice)}</span>`;
+    badgesHtml += `<span class="badge" style="background: #042f2e; color: #5eead4; font-weight: 800; font-size: 13px; padding: 5px 10px;">🛡️ HUG 126% 한도 ${formatWonPrice(item.hugGuaranteeLimit || Math.round(item.publicPrice * 1.26))}</span>`;
   }
   if (badgeBar) badgeBar.innerHTML = badgesHtml;
 
-  const thStyle = 'padding: 8px 12px; background: #1e293b; color: #94a3b8; font-weight: 600; width: 18%; border: 1px solid #334155;';
-  const tdStyle = 'padding: 8px 12px; color: #f8fafc; border: 1px solid #334155;';
+  const thStyle = 'padding: 10px 14px; background: #1e293b; color: #94a3b8; font-weight: 700; width: 20%; border: 1px solid #334155; font-size: 14px;';
+  const tdStyle = 'padding: 10px 14px; color: #f8fafc; border: 1px solid #334155; font-size: 14.5px;';
 
   // 1. 기본 사항
   if (tBasic) {
