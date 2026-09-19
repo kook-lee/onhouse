@@ -605,7 +605,7 @@ namespace OnHouseLocal.Services
                 var dongMatch = Regex.Match(naverItem.ArticleName + " " + naverItem.Title, @"(\d{1,4})\s*동");
                 if (dongMatch.Success) dongNm = dongMatch.Groups[1].Value;
 
-                var hoMatch = Regex.Match(naverItem.Title + " " + naverItem.Description + " " + naverItem.FloorInfo, @"([1-9]\d{1,3})\s*호");
+                var hoMatch = Regex.Match(naverItem.ArticleName + " " + naverItem.Title + " " + naverItem.Description + " " + naverItem.FloorInfo, @"([1-9]\d{1,3})\s*호");
                 if (hoMatch.Success) hoNm = hoMatch.Groups[1].Value;
 
                 string pnu = "";

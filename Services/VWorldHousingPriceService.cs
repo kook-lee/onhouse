@@ -79,13 +79,33 @@ namespace OnHouseLocal.Services
 
             try
             {
-                // 1차 시도: 동/호가 있으면 함께 파라미터로 전송
-                List<PublicHousingPriceYearItem> records = await FetchPriceRecordsAsync(pnu, dongClean, hoClean);
+                List<PublicHousingPriceYearItem> records = new();
 
-                // 만약 동/호 파라미터로 결과가 안 나오면, PNU만으로 조회 후 메모리에서 스마트 매칭
-                if (records.Count == 0 && (!string.IsNullOrEmpty(dongClean) || !string.IsNullOrEmpty(hoClean)))
+                // 1차 시도: 최신 연도(2026 -> 2025 -> 2024)부터 지정하여 최신 공시가격 우선 조회
+                int curYear = DateTime.Now.Year;
+                for (int y = curYear; y >= curYear - 2; y--)
                 {
-                    records = await FetchPriceRecordsAsync(pnu, "", "");
+                    var yrRecords = await FetchPriceRecordsAsync(pnu, dongClean, hoClean, y.ToString());
+                    if (yrRecords.Count == 0 && (!string.IsNullOrEmpty(dongClean) || !string.IsNullOrEmpty(hoClean)))
+                    {
+                        yrRecords = await FetchPriceRecordsAsync(pnu, "", "", y.ToString());
+                    }
+
+                    if (yrRecords.Count > 0)
+                    {
+                        records = yrRecords;
+                        break;
+                    }
+                }
+
+                // 2차 시도: 연도별 조회에서 나오지 않은 경우, 전체 연도 통합 조회 (최대 1000건 확보)
+                if (records.Count == 0)
+                {
+                    records = await FetchPriceRecordsAsync(pnu, dongClean, hoClean, "");
+                    if (records.Count == 0 && (!string.IsNullOrEmpty(dongClean) || !string.IsNullOrEmpty(hoClean)))
+                    {
+                        records = await FetchPriceRecordsAsync(pnu, "", "", "");
+                    }
                 }
 
                 if (records.Count == 0)
@@ -134,8 +154,11 @@ namespace OnHouseLocal.Services
                     }
                 }
 
-                // 최신 연도 기준 정렬
-                var sorted = matchRecords.OrderByDescending(r => r.Year).ThenByDescending(r => r.UpdatedDate).ToList();
+                // 최신 연도 기준 정렬 (숫자 크기 내림차순 정렬)
+                var sorted = matchRecords
+                    .OrderByDescending(r => int.TryParse(r.Year, out int y) ? y : 0)
+                    .ThenByDescending(r => r.UpdatedDate)
+                    .ToList();
                 var latest = sorted.First();
 
                 result.Success = true;
@@ -212,11 +235,12 @@ namespace OnHouseLocal.Services
             return await QueryApartmentPriceAsync(pnu, dongNm, hoNm, exclusiveArea);
         }
 
-        private async Task<List<PublicHousingPriceYearItem>> FetchPriceRecordsAsync(string pnu, string dong, string ho)
+        private async Task<List<PublicHousingPriceYearItem>> FetchPriceRecordsAsync(string pnu, string dong, string ho, string stdrYear = "")
         {
             var list = new List<PublicHousingPriceYearItem>();
-            string url = $"{BaseUrl}?key={ServiceKey}&pnu={pnu}&format=json&numOfRows=100&pageNo=1";
+            string url = $"{BaseUrl}?key={ServiceKey}&pnu={pnu}&format=json&numOfRows=1000&pageNo=1";
 
+            if (!string.IsNullOrEmpty(stdrYear)) url += $"&stdrYear={stdrYear}";
             if (!string.IsNullOrEmpty(dong)) url += $"&dongNm={Uri.EscapeDataString(dong)}";
             if (!string.IsNullOrEmpty(ho)) url += $"&hoNm={Uri.EscapeDataString(ho)}";
 
