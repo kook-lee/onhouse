@@ -3040,6 +3040,7 @@ window.openLedgerFullModal = function(item) {
   const tStructure = document.getElementById('ledger-table-structure');
   const tAdmin = document.getElementById('ledger-table-admin');
   const tPrice = document.getElementById('ledger-table-price');
+  const tExtra = document.getElementById('ledger-table-extra');
 
   const bldName = raw.bldNm || item.articleName || '건축물대장';
   const platPlc = raw.platPlc || item.address || '-';
@@ -3241,9 +3242,94 @@ window.openLedgerFullModal = function(item) {
     }
   }
 
+  // 6. 해당 호수(전유부) 정보 & 등록 정보
+  if (tExtra) {
+    const area1Val = Number(item.area1 || 0);
+    const area2Val = Number(item.area2 || 0);
+    tExtra.innerHTML = `
+      <tr>
+        <th style="${thStyle}">해당 호수/층수</th>
+        <td style="${tdStyle}"><b style="color: #38bdf8;">${escapeHtml(item.floorInfo || '-')}</b> (총 지상 ${raw.grndFlrCnt || '-'}층)</td>
+        <th style="${thStyle}">방향 / 종류</th>
+        <td style="${tdStyle}">${escapeHtml(item.direction || '-')} / <b style="color: #fbbf24;">${escapeHtml(item.realEstateTypeName || '아파트/원룸')}</b></td>
+      </tr>
+      <tr>
+        <th style="${thStyle}">전용면적 (호별)</th>
+        <td style="${tdStyle}">
+          <b style="color: #86efac; font-size: 14.5px;">${area2Val > 0 ? area2Val.toFixed(2) + ' ㎡' : '-'}</b>
+          ${area2Val > 0 ? ` <span style="color: #94a3b8;">(${(area2Val * 0.3025).toFixed(1)}평)</span>` : ''}
+        </td>
+        <th style="${thStyle}">공급/계약면적</th>
+        <td style="${tdStyle}">
+          ${area1Val > 0 ? area1Val.toFixed(2) + ' ㎡' : '-'}
+          ${area1Val > 0 ? ` <span style="color: #94a3b8;">(${(area1Val * 0.3025).toFixed(1)}평)</span>` : ''}
+        </td>
+      </tr>
+      <tr>
+        <th style="${thStyle}">광고 등록 가격</th>
+        <td style="${tdStyle}"><b style="color: #fde047; font-size: 15px;">${escapeHtml(item.priceDisplay || '-')}</b></td>
+        <th style="${thStyle}">매물번호</th>
+        <td style="${tdStyle}">${escapeHtml(item.articleNumber || '-')}</td>
+      </tr>
+      <tr>
+        <th style="${thStyle}">대장 교차 검증 상태</th>
+        <td style="${tdStyle}" colspan="3">
+          <span style="color: #38bdf8; font-weight: 700;">${escapeHtml(item.ledgerMessage || '국토교통부 건축물대장 및 VWorld 공시가격 실시간 대조 완료')}</span>
+        </td>
+      </tr>
+    `;
+  }
+
+  // 국토부 원본 JSON 박스 세팅
+  const rawBox = document.getElementById('ledger-raw-json-box');
+  const btnToggle = document.getElementById('btn-toggle-raw-json');
+  if (rawBox) {
+    rawBox.style.display = 'none';
+    if (item.ledgerRawJson) {
+      try {
+        const parsed = JSON.parse(item.ledgerRawJson);
+        rawBox.textContent = JSON.stringify(parsed, null, 2);
+      } catch {
+        rawBox.textContent = item.ledgerRawJson;
+      }
+    } else {
+      rawBox.textContent = '수집된 원본 JSON 데이터가 없습니다.';
+    }
+  }
+  if (btnToggle) {
+    btnToggle.textContent = '▶ 국토교통부 건축행정(세움터) 전산 원본 데이터(50개 전체 속성) 펼쳐보기';
+  }
+
   modal.style.display = 'flex';
   const bodyEl = document.getElementById('ledger-modal-body');
   if (bodyEl) bodyEl.scrollTop = 0;
+};
+
+window.toggleLedgerRawJson = function() {
+  const rawBox = document.getElementById('ledger-raw-json-box');
+  const btnToggle = document.getElementById('btn-toggle-raw-json');
+  if (!rawBox || !btnToggle) return;
+
+  if (rawBox.style.display === 'none' || !rawBox.style.display) {
+    rawBox.style.display = 'block';
+    btnToggle.textContent = '▼ 국토교통부 건축행정(세움터) 전산 원본 데이터 닫기';
+  } else {
+    rawBox.style.display = 'none';
+    btnToggle.textContent = '▶ 국토교통부 건축행정(세움터) 전산 원본 데이터(50개 전체 속성) 펼쳐보기';
+  }
+};
+
+window.copyLedgerRawJson = function() {
+  const rawBox = document.getElementById('ledger-raw-json-box');
+  if (!rawBox || !rawBox.textContent) {
+    alert('복사할 원본 JSON 데이터가 없습니다.');
+    return;
+  }
+  navigator.clipboard.writeText(rawBox.textContent).then(() => {
+    alert('📋 국토교통부 세움터 전산 원본 JSON 데이터가 클립보드에 복사되었습니다!');
+  }).catch(() => {
+    alert('클립보드 복사 실패');
+  });
 };
 
 window.scrollLedgerSection = function(secId) {
@@ -3286,7 +3372,9 @@ window.copyLedgerModalSummary = function() {
 • 위반건축물: ${raw.itgrtItatBldYn === '1' ? '🚨 위반건축물 등재' : '✅ 정상 (위반 없음)'}
 • 사용승인일: ${raw.useAprDay ? raw.useAprDay.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : (item.approvalDate || '-')}
 ${item.publicPrice > 0 ? `• 공동주택 공시가격: ${formatWonPrice(item.publicPrice)} (${item.publicPriceYear || '최신'}년 기준)
-• HUG 안심전세 126% 보증보험 한도: ${formatWonPrice(hugLimit)}` : ''}`;
+• HUG 안심전세 126% 보증보험 한도: ${formatWonPrice(hugLimit)}` : ''}
+• 해당 매물 호수: ${item.floorInfo || '-'} (전용 ${item.area2 || '-'}㎡)
+• 광고 등록가: ${item.priceDisplay || '-'}`;
 
   navigator.clipboard.writeText(text).then(() => {
     alert('📋 건축물대장 및 HUG 126% 요약 정보가 클립보드에 복사되었습니다!\n카카오톡 또는 손님 브리핑에 바로 붙여넣으세요.');
