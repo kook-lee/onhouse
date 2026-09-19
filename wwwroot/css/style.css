@@ -427,32 +427,53 @@ body {
   height: 100% !important;
 }
 
-/* 좌측 매물 목록 및 네이버 래퍼 스크롤 완전 분리 */
-#naver-list-wrap {
-  flex: 1 1 0% !important;
-  min-height: 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-  height: 100% !important;
-  gap: 10px !important;
+/* 좌측 매물 목록 및 네이버 래퍼 스크롤 설정 (JS display:none / display:flex 완벽 호환) */
+.panel-header {
+  flex-shrink: 0 !important;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
 }
 
-#naver-list, #property-list, #danggeun-list {
+/* 탭 전환 시 display: none 완벽 강제 적용 */
+#property-list[style*="display: none"],
+#danggeun-list[style*="display: none"],
+#naver-list-wrap[style*="display: none"] {
+  display: none !important;
+}
+
+#property-list, #danggeun-list {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 6px;
+}
+
+#naver-list-wrap {
+  flex: 1 1 0%;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden !important;
+  display: flex;
+  flex-direction: column !important;
+  gap: 10px;
+}
+
+#naver-list {
   flex: 1 1 0% !important;
   min-height: 0 !important;
+  height: 100% !important;
+  width: 100% !important;
   overflow-y: scroll !important;
   overflow-x: hidden !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 12px !important;
-  padding-right: 8px !important;
-}
-
-.panel-header {
-  margin-bottom: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border);
+  padding-right: 6px !important;
 }
 
 .panel-title-wrap {
@@ -924,28 +945,31 @@ label {
   overflow-y: scroll !important;
   overflow-x: hidden !important;
   scrollbar-width: auto;
-  scrollbar-color: #38bdf8 #1e293b;
+  scrollbar-color: #38bdf8 #090e17;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
-  width: 14px;
+  width: 16px !important;
+  height: 16px !important;
+  display: block !important;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #131c2e;
+  background: #090e17 !important;
+  border-left: 2px solid #1e3a8a !important;
   border-radius: 8px;
-  border-left: 1px solid #1e3a8a;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #38bdf8;
-  border-radius: 8px;
-  border: 3px solid #131c2e;
-  box-shadow: inset 0 0 6px rgba(56, 189, 248, 0.6);
+  background: linear-gradient(180deg, #38bdf8, #2563eb) !important;
+  border-radius: 8px !important;
+  border: 2px solid #090e17 !important;
+  min-height: 50px !important;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.7) !important;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #60a5fa;
+  background: linear-gradient(180deg, #60a5fa, #3b82f6) !important;
 }
 
 /* 건축물대장 모달 내부 섹션 자동 축소 방지 및 여백 보장 */

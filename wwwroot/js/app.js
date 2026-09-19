@@ -312,11 +312,14 @@ async function loadProperties() {
 function renderList(list) {
   const container = document.getElementById('property-list');
   container.innerHTML = '';
-  document.getElementById('list-count').textContent = list.length;
+  if (currentViewMode === 'properties') {
+    const countSpan = document.getElementById('list-count');
+    if (countSpan) countSpan.textContent = list.length;
+  }
 
   if (list.length === 0) {
     container.innerHTML = '<div style="padding: 20px; text-align: center; color: #94a3b8;">조건에 맞는 매물이 없습니다.</div>';
-    clearDetail();
+    if (currentViewMode === 'properties') clearDetail();
     return;
   }
 
@@ -833,11 +836,11 @@ function updateViewModeUI() {
     if (tabNaver) tabNaver.classList.add('active');
     if (subBarNaver) subBarNaver.style.display = 'flex';
     if (naverWrap) naverWrap.style.display = 'flex';
-    title.innerHTML = `🟢 네이버 매물 대장 전수 검증 (<span id="list-count">0</span>건)`;
+    title.innerHTML = `🟢 네이버 매물 대장 전수 검증 (<span id="list-count">${currentNaverListings.length}</span>건)`;
     indicator.textContent = '네이버 대장 검증';
     indicator.className = 'badge badge-success';
 
-    clearDetail();
+    if (!selectedNaverListingId) clearDetail();
     loadNaverListings();
     loadRealtorSettings();
     setStatus('네이버 매물 대장 검증 허브 모드 (카드를 클릭하면 우측에 1:1 대조 리포트가 표시됩니다)');
@@ -867,14 +870,17 @@ function renderDanggeunList(deals) {
     listToRender = listToRender.filter(d => d.authorType.includes('당근'));
   }
 
-  document.getElementById('list-count').textContent = listToRender.length;
+  if (currentViewMode === 'danggeun') {
+    const countSpan = document.getElementById('list-count');
+    if (countSpan) countSpan.textContent = listToRender.length;
+  }
 
   if (listToRender.length === 0) {
     container.innerHTML = `<div style="padding: 30px; text-align: center; color: #94a3b8; font-size: 0.9rem;">
       조건에 해당하는 직거래 매물이 없습니다.<br>
       상단의 <strong>[지금 실시간 크롤링]</strong> 버튼을 눌러보세요!
     </div>`;
-    clearDetail();
+    if (currentViewMode === 'danggeun') clearDetail();
     return;
   }
 
