@@ -57,6 +57,9 @@ namespace OnHouseLocal.Services
         public string StcnsDay { get; set; } = string.Empty;      // 착공일
         public string UseApprovalDate { get; set; } = string.Empty; // 사용승인일
         public bool IsViolatingBuilding { get; set; } // 위반건축물 여부
+        public bool IsSuspiciousViolation { get; set; } // 위반 의심 여부 (판넬/가설구조 증축 등)
+        public string ViolationSuspicionReason { get; set; } = string.Empty; // 의심 사유
+        public bool HasOfficialViolationData { get; set; } // API에 위반건축물 공식 필드가 제공되었는지 여부
 
         // 호별 전유/공용 및 대지권 상세 정보
         public string TargetHo { get; set; } = string.Empty;
@@ -660,7 +663,23 @@ namespace OnHouseLocal.Services
 
             string itatBld = GetJsonString(bld, "itgrtItatBldYn");
             if (string.IsNullOrEmpty(itatBld)) itatBld = GetJsonString(bld, "itatBldYn");
+            info.HasOfficialViolationData = !string.IsNullOrEmpty(itatBld);
             info.IsViolatingBuilding = itatBld == "1" || itatBld.Equals("Y", StringComparison.OrdinalIgnoreCase);
+
+            // 공공 오픈API는 정책상 itgrtItatBldYn 필드가 생략되는 경우가 많으므로
+            // 대장 내 구조, 비고, 용도 등 텍스트에서 불법/위반/판넬/가설 키워드를 감지하여 중개사고 예방
+            string checkStr = $"{info.Structure} {info.EtcPurps} {GetJsonString(bld, "etcStrct")} {GetJsonString(bld, "bldNm")}";
+            if (checkStr.Contains("위반") || checkStr.Contains("불법") || checkStr.Contains("시정명령"))
+            {
+                info.IsViolatingBuilding = true;
+                info.IsSuspiciousViolation = true;
+                info.ViolationSuspicionReason = "대장 전산에 위반/불법/시정명령 표기 감지";
+            }
+            else if (checkStr.Contains("조립식판넬") || checkStr.Contains("판넬조") || checkStr.Contains("컨테이너") || checkStr.Contains("가설"))
+            {
+                info.IsSuspiciousViolation = true;
+                info.ViolationSuspicionReason = "대장 구조에 '조립식판넬/가설구조' 표기 (상층부/옥탑 무단증축 의심)";
+            }
 
             info.PmsDay = GetJsonString(bld, "pmsDay");
             info.StcnsDay = GetJsonString(bld, "stcnsDay");

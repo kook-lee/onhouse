@@ -23,6 +23,7 @@ namespace OnHouseLocal.Models
         public string LedgerDiscrepanciesJson { get; set; } = "";
         public DateTime? InspectedAt { get; set; }
         public bool IsImported { get; set; }
+        public bool IsViolatingBuilding { get; set; } = false; // 위반건축물 여부 (실제 대장 확인 또는 수동 지정)
         public DateTime CreatedAt { get; set; } = DateTime.Now;
 
         // [신규] 건축물대장 정밀 스펙 & VWorld 공동주택 공시가격 & HUG 안심전세 126%

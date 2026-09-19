@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Dapper;
 using Microsoft.Data.Sqlite;
@@ -195,6 +197,7 @@ namespace OnHouseLocal.Services
             try { await connection.ExecuteAsync("ALTER TABLE NaverListings ADD COLUMN PublicPriceYear TEXT DEFAULT '';"); } catch { }
             try { await connection.ExecuteAsync("ALTER TABLE NaverListings ADD COLUMN HugGuaranteeLimit INTEGER DEFAULT 0;"); } catch { }
             try { await connection.ExecuteAsync("ALTER TABLE NaverListings ADD COLUMN LedgerRawJson TEXT DEFAULT '';"); } catch { }
+            try { await connection.ExecuteAsync("ALTER TABLE NaverListings ADD COLUMN IsViolatingBuilding INTEGER DEFAULT 0;"); } catch { }
         }
 
         // --- 사용자 계정 관리 ---
@@ -606,6 +609,73 @@ namespace OnHouseLocal.Services
             using var connection = new SqliteConnection(ConnectionString);
             string sql = "UPDATE NaverListings SET IsImported = 1 WHERE Id = @Id;";
             int affected = await connection.ExecuteAsync(sql, new { Id = id });
+            return affected > 0;
+        }
+
+        public async Task<bool> UpdateNaverListingViolationAsync(int id, bool isViolating, string? reason = null)
+        {
+            using var connection = new SqliteConnection(ConnectionString);
+            var item = await GetNaverListingByIdAsync(id);
+            if (item == null) return false;
+
+            item.IsViolatingBuilding = isViolating;
+            var discrepancies = new List<DiscrepancyItem>();
+            try
+            {
+                if (!string.IsNullOrEmpty(item.LedgerDiscrepanciesJson))
+                {
+                    discrepancies = JsonSerializer.Deserialize<List<DiscrepancyItem>>(item.LedgerDiscrepanciesJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<DiscrepancyItem>();
+                }
+            }
+            catch { }
+
+            var dItem = discrepancies.FirstOrDefault(d => d.ItemName.Contains("위반"));
+            if (dItem == null)
+            {
+                dItem = new DiscrepancyItem { ItemName = "위반건축물 여부", NaverValue = "정상" };
+                discrepancies.Insert(0, dItem);
+            }
+
+            if (isViolating)
+            {
+                dItem.Status = "Danger";
+                dItem.LedgerValue = "🚨 위반건축물 등재 (구청 공식 대장 확인 완료)";
+                dItem.Note = string.IsNullOrEmpty(reason)
+                    ? "실제 관할 구청 건축물대장에 [위반건축물]로 등재되어 있습니다! (이행강제금 부과 대상 및 HUG 전세보증보험/전세대출 전면 불가)"
+                    : reason;
+                item.LedgerStatus = "Danger";
+                item.LedgerMessage = $"🚨 [위반건축물 등재 건물] {(string.IsNullOrEmpty(reason) ? "실제 관할 구청 건축물대장에 위반건축물로 등재된 매물입니다!" : reason)} 전세대출 및 보증보험 불가!";
+            }
+            else
+            {
+                dItem.Status = "Match";
+                dItem.LedgerValue = "✅ 정상 (위반 없음)";
+                dItem.Note = "사용자 검토를 통해 정상 건축물로 확인되었습니다.";
+                bool hasOtherDanger = discrepancies.Any(d => d != dItem && d.Status == "Danger");
+                bool hasOtherWarning = discrepancies.Any(d => d != dItem && d.Status == "Warning");
+                item.LedgerStatus = hasOtherDanger ? "Danger" : (hasOtherWarning ? "Warning" : "Safe");
+                item.LedgerMessage = hasOtherDanger ? "⚠️ 다른 정보 불일치 항목이 존재합니다." : "✅ 네이버 광고 정보가 실제 건축물대장과 일치합니다.";
+            }
+
+            string updatedDiscrepanciesJson = JsonSerializer.Serialize(discrepancies);
+            string sql = @"
+                UPDATE NaverListings SET
+                    IsViolatingBuilding = @IsViolatingBuilding,
+                    LedgerStatus = @LedgerStatus,
+                    LedgerMessage = @LedgerMessage,
+                    LedgerDiscrepanciesJson = @LedgerDiscrepanciesJson,
+                    InspectedAt = @InspectedAt
+                WHERE Id = @Id;";
+
+            int affected = await connection.ExecuteAsync(sql, new
+            {
+                Id = id,
+                IsViolatingBuilding = isViolating ? 1 : 0,
+                LedgerStatus = item.LedgerStatus,
+                LedgerMessage = item.LedgerMessage,
+                LedgerDiscrepanciesJson = updatedDiscrepanciesJson,
+                InspectedAt = DateTime.Now
+            });
             return affected > 0;
         }
 

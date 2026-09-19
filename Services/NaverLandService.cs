@@ -412,7 +412,8 @@ namespace OnHouseLocal.Services
             BuildingLedgerService ledgerService,
             VWorldHousingPriceService? vworldService = null,
             string fallbackArticleName = "",
-            string fallbackFloorInfo = "")
+            string fallbackFloorInfo = "",
+            bool? isViolatingBuildingOverride = null)
         {
             var res = new NaverInspectionResult();
             string articleNo = ExtractArticleNumber(urlOrArticleNo);
@@ -462,6 +463,11 @@ namespace OnHouseLocal.Services
                 }
             }
 
+            if (isViolatingBuildingOverride.HasValue && ledger != null)
+            {
+                ledger.IsViolatingBuilding = isViolatingBuildingOverride.Value;
+            }
+
             res.LedgerItem = ledger;
             res.Success = true;
 
@@ -483,9 +489,21 @@ namespace OnHouseLocal.Services
                 {
                     ItemName = "위반건축물 여부",
                     NaverValue = "표기 없음 (정상 매물로 등록)",
-                    LedgerValue = "🚨 위반건축물 등재 건물",
+                    LedgerValue = "🚨 위반건축물 등재 건물 (대장 확인 완료)",
                     Status = "Danger",
-                    Note = "건축물대장에 위반건축물로 표기되어 있어 이행강제금 부과 또는 전세대출/보증보험 불가 위험이 있습니다."
+                    Note = "실제 관할 구청 건축물대장에 [위반건축물]로 등재되어 있습니다! (이행강제금 부과 대상 및 HUG 전세보증보험/전세대출 전면 불가)"
+                });
+            }
+            else if (ledger.IsSuspiciousViolation)
+            {
+                warningCount++;
+                res.Discrepancies.Add(new DiscrepancyItem
+                {
+                    ItemName = "위반건축물 여부",
+                    NaverValue = "정상 표기",
+                    LedgerValue = $"⚠️ 위반 의심 ({ledger.ViolationSuspicionReason})",
+                    Status = "Warning",
+                    Note = "국토부 오픈API에는 위반 플래그가 비공개/미제공되었으나, 대장 구조상 '조립식판넬' 등 증축 표기가 감지되었습니다. 정부24 공식 발급본 확인 필수!"
                 });
             }
             else
@@ -494,9 +512,11 @@ namespace OnHouseLocal.Services
                 {
                     ItemName = "위반건축물 여부",
                     NaverValue = "정상",
-                    LedgerValue = "정상 (위반 없음)",
+                    LedgerValue = ledger.HasOfficialViolationData ? "정상 (위반 없음)" : "공공API 정상 표기 (정부24 열람 권장)",
                     Status = "Match",
-                    Note = "대장 상 위반건축물 등재 내역이 없는 안전한 건축물입니다."
+                    Note = ledger.HasOfficialViolationData
+                        ? "대장 상 위반건축물 등재 내역이 없는 안전한 건축물입니다."
+                        : "국토부 오픈API 특이사항 없음 (단, 정책상 위반건축물 필드가 오픈API에서 미제공될 수 있으므로 계약 전 정부24 최종 열람 권장)"
                 });
             }
 
@@ -897,7 +917,13 @@ namespace OnHouseLocal.Services
                 };
             }
 
-            var res = await InspectAndCompareAsync(item.ArticleNumber, ledgerService, vworldService, item.ArticleName, item.FloorInfo);
+            var res = await InspectAndCompareAsync(
+                item.ArticleNumber, 
+                ledgerService, 
+                vworldService, 
+                item.ArticleName, 
+                item.FloorInfo, 
+                item.IsViolatingBuilding);
             string status = res.OverallStatus; // "Safe", "Warning", "Danger"
             if (!res.Success) status = "Failed";
 

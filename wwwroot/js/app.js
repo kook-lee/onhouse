@@ -2992,7 +2992,9 @@ window.selectNaverListing = function(id) {
   const totalElvt = Number(ledgerRaw.rideUseElvtCnt || 0) + Number(ledgerRaw.emgenUseElvtCnt || 0) || (item.hasElevator ? 1 : 0);
   const totalPark = Number(ledgerRaw.indrAutoUtcnt || 0) + Number(ledgerRaw.oudrAutoUtcnt || 0) + Number(ledgerRaw.indrMechUtcnt || 0) + Number(ledgerRaw.oudrMechUtcnt || 0) || item.totalParking;
   const useApr = ledgerRaw.useAprDay ? ledgerRaw.useAprDay.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : (item.approvalDate || '-');
-  const itatYn = ledgerRaw.itgrtItatBldYn === '1' || ledgerRaw.itatBldYn === '1';
+  const itatYn = item.isViolatingBuilding || ledgerRaw.itgrtItatBldYn === '1' || ledgerRaw.itatBldYn === '1';
+  const etcStrctText = (ledgerRaw.etcStrct || '') + ' ' + (ledgerRaw.strctCdNm || '') + ' ' + (item.buildingStructure || '');
+  const isSuspicious = !itatYn && (etcStrctText.includes('판넬') || etcStrctText.includes('조립식') || etcStrctText.includes('가설') || etcStrctText.includes('무단'));
 
   // 호별 대지지분 및 전유/공용 면적 추출
   let landShareArea = Number(ledgerRaw.unitLandShareArea || 0);
@@ -3067,7 +3069,22 @@ window.selectNaverListing = function(id) {
     <div><b>주구조:</b> ${escapeHtml(ledgerRaw.strctCdNm || item.buildingStructure || '-')}</div>
     <div><b>승강기 / 주차:</b> 승강기 총 ${totalElvt}대 🛗 / 주차 총 ${totalPark}대</div>
     <div><b>사용승인(준공일):</b> <span style="color: #f8fafc; font-weight: 700;">${useApr}</span></div>
-    <div><b>위반건축물 여부:</b> ${itatYn ? '<b style="color: #ef4444;">🚨 위반건축물 등재</b>' : '<b style="color: #10b981;">✅ 정상 건축물</b>'}</div>
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 4px; padding: 4px 0; border-top: 1px dashed rgba(255,255,255,0.08); border-bottom: 1px dashed rgba(255,255,255,0.08);">
+      <div>
+        <b>위반건축물 여부:</b> ${
+          itatYn 
+            ? '<b style="color: #ef4444; font-size: 14.5px;">🚨 위반건축물 등재 (대장 확인 완료)</b>' 
+            : (isSuspicious 
+              ? '<b style="color: #f59e0b; font-size: 13.5px;">⚠️ 위반 의심 (판넬조 표기 - 대장 확인 필수)</b>'
+              : '<b style="color: #10b981;">✅ 정상 (계약 전 정부24 최종 열람 권장)</b>')
+        }
+      </div>
+      <button class="btn btn-sm ${item.isViolatingBuilding ? 'btn-outline-success' : 'btn-outline-danger'}" 
+              style="padding: 2px 8px; font-size: 11.5px; border-radius: 4px; font-weight: 700; margin-left: 6px;" 
+              onclick="toggleNaverViolation(${item.id})">
+        ${item.isViolatingBuilding ? '🔄 정상 매물로 전환' : '🚨 위반건축물로 직접 지정'}
+      </button>
+    </div>
     <div><b>검증 시각:</b> ${item.inspectedAt ? new Date(item.inspectedAt).toLocaleString() : '미검증'}</div>
   `;
   ledgerEl.innerHTML = ledgerHtml;
@@ -3151,10 +3168,10 @@ window.openLedgerFullModal = function(item) {
   else if (item.ledgerStatus === 'Warning') badgesHtml += '<span class="badge" style="background: #78350f; color: #fde68a; font-weight: 800; font-size: 13px; padding: 5px 10px;">⚠️ 주의 요망</span>';
   else if (item.ledgerStatus === 'Danger') badgesHtml += '<span class="badge" style="background: #7f1d1d; color: #fca5a5; font-weight: 800; font-size: 13px; padding: 5px 10px;">🚨 과태료 위험</span>';
   
-  const itatYn = raw.itgrtItatBldYn === '1' || raw.itatBldYn === '1';
+  const itatYn = item.isViolatingBuilding || raw.itgrtItatBldYn === '1' || raw.itatBldYn === '1';
   badgesHtml += itatYn 
     ? '<span class="badge" style="background: #991b1b; color: #fee2e2; font-weight: 800; font-size: 13px; padding: 5px 10px;">🚨 위반건축물 등재</span>'
-    : '<span class="badge" style="background: #064e3b; color: #a7f3d0; font-weight: 800; font-size: 13px; padding: 5px 10px;">✅ 위반건축물 없음</span>';
+    : '<span class="badge" style="background: #064e3b; color: #a7f3d0; font-weight: 800; font-size: 13px; padding: 5px 10px;">✅ 정상 표제부</span>';
 
   if (raw.regstrGbCdNm) {
     badgesHtml += `<span class="badge" style="background: #1e293b; color: #cbd5e1; font-size: 13px; padding: 5px 10px;">${escapeHtml(raw.regstrGbCdNm)}건축물</span>`;
@@ -3323,8 +3340,8 @@ window.openLedgerFullModal = function(item) {
         <th style="${thStyle}">위반건축물 여부</th>
         <td style="${tdStyle}" colspan="3">
           ${itatYn 
-            ? '<b style="color: #ef4444; font-size: 13px;">🚨 위반건축물 등재 건물 (이행강제금 부과 또는 대출/보증보험 불가 위험)</b>' 
-            : '<b style="color: #10b981; font-size: 13px;">✅ 정상 건축물 (위반건축물 등재 내역 없음)</b>'}
+            ? '<b style="color: #ef4444; font-size: 13.5px;">🚨 위반건축물 등재 건물 (관할 구청 공식 대장 확인 완료 / 이행강제금 부과 및 대출·보증보험 불가)</b>' 
+            : '<b style="color: #10b981; font-size: 13px;">✅ 공공API 정상 표제부 (계약 전 정부24 발급본 최종 열람 권장)</b>'}
         </td>
       </tr>
       <tr>
@@ -3666,6 +3683,30 @@ window.auditSingleNaverListing = async function(id) {
   } catch (err) {
     console.error(err);
     alert('대장 대조 실패: ' + err.message);
+  }
+};
+
+// 위반건축물 상태 수동 토글 (정부24 대장 실물 확인 후 원클릭 반영)
+window.toggleNaverViolation = async function(id) {
+  try {
+    const res = await fetch(`/api/naver/listings/${id}/toggle-violation`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToastNotification(
+        data.isViolating ? '🚨 위반건축물 등재 반영' : '✅ 정상 매물 반영',
+        data.isViolating 
+          ? '해당 매물이 [위반건축물 등재 매물]로 지정되었습니다. 대조표 및 리포트에 위험(Danger)으로 갱신됩니다.' 
+          : '해당 매물이 [정상 매물]로 지정되었습니다.',
+        data.isViolating ? '🚨' : '✅'
+      );
+      await loadNaverListings();
+      selectNaverListing(id);
+    } else {
+      alert('위반건축물 상태 변경 실패: ' + (data.message || '오류'));
+    }
+  } catch (err) {
+    console.error(err);
+    alert('서버 통신 실패: ' + err.message);
   }
 };
 

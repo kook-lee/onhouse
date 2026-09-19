@@ -749,6 +749,22 @@ try
         });
     });
 
+    // 5-1. 위반건축물 여부 수동 토글/지정 (중개사가 정부24 대장 실물 확인 후 원클릭 반영)
+    app.MapPost("/api/naver/listings/{id:int}/toggle-violation", async (int id, DatabaseService db) =>
+    {
+        var item = await db.GetNaverListingByIdAsync(id);
+        if (item == null) return Results.NotFound(new { message = "매물을 찾을 수 없습니다." });
+
+        bool nextState = !item.IsViolatingBuilding;
+        string? reason = nextState 
+            ? "실제 관할 구청 건축물대장에 [위반건축물]로 공식 등재 확인 (이행강제금 및 전세대출/보증보험 불가)" 
+            : null;
+
+        bool updated = await db.UpdateNaverListingViolationAsync(id, nextState, reason);
+        var freshItem = await db.GetNaverListingByIdAsync(id);
+        return Results.Ok(new { success = updated, item = freshItem, isViolating = nextState });
+    });
+
     // 6. 검증된 네이버 매물을 내 OnHouse 장부(Properties)로 원클릭 저장
     app.MapPost("/api/naver/listings/import-to-property/{id:int}", async (int id, int? userId, DatabaseService db) =>
     {
