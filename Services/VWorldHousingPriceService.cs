@@ -73,9 +73,18 @@ namespace OnHouseLocal.Services
                 return result;
             }
 
-            // 동, 호 정제 (예: "101동" -> "101", "201호" -> "201")
+            // 동, 호 정제 (예: "3210동" -> "3210동" 및 "3210", "604호" -> "604")
             string dongClean = CleanDong(dongNm);
             string hoClean = CleanHo(hoNm);
+
+            // VWorld 공공데이터는 아파트 단지별로 dongNm에 '동'이 붙어있거나(예: '3210동') 없는 경우가 있으므로 후보군 구성
+            var dongCandidates = new List<string>();
+            if (!string.IsNullOrEmpty(dongClean))
+            {
+                if (!dongClean.EndsWith("동")) dongCandidates.Add(dongClean + "동");
+                dongCandidates.Add(dongClean.Replace("동", "").Trim());
+            }
+            dongCandidates.Add(""); // 동 없이 전체 호수 검색 후보
 
             try
             {
@@ -85,18 +94,19 @@ namespace OnHouseLocal.Services
                 int curYear = DateTime.Now.Year;
                 for (int y = curYear; y >= curYear - 2; y--)
                 {
-                    // 1) 호수와 연도로 우선 조회 (단일동 건물은 dongNm이 빈칸이므로 호수 단독이 가장 정확)
-                    var yrRecords = !string.IsNullOrEmpty(hoClean) 
-                        ? await FetchPriceRecordsAsync(pnu, "", hoClean, y.ToString()) 
-                        : new List<PublicHousingPriceYearItem>();
+                    List<PublicHousingPriceYearItem> yrRecords = new();
 
-                    // 2) 호수로 안 나온 경우 동+호로 조회
-                    if (yrRecords.Count == 0 && !string.IsNullOrEmpty(dongClean) && !string.IsNullOrEmpty(hoClean))
+                    // 1) 동 후보군 + 호수로 정밀 조회
+                    foreach (var dCand in dongCandidates)
                     {
-                        yrRecords = await FetchPriceRecordsAsync(pnu, dongClean, hoClean, y.ToString());
+                        if (!string.IsNullOrEmpty(hoClean))
+                        {
+                            yrRecords = await FetchPriceRecordsAsync(pnu, dCand, hoClean, y.ToString());
+                            if (yrRecords.Count > 0) break;
+                        }
                     }
 
-                    // 3) 전체 호수 해당 연도 조회
+                    // 2) 호수로 안 나온 경우 전체 동 해당 연도 조회
                     if (yrRecords.Count == 0)
                     {
                         yrRecords = await FetchPriceRecordsAsync(pnu, "", "", y.ToString());
@@ -112,14 +122,15 @@ namespace OnHouseLocal.Services
                 // 2차 시도: 연도별 조회에서 나오지 않은 경우, 전체 연도 통합 조회 (최대 1000건 확보)
                 if (records.Count == 0)
                 {
-                    if (!string.IsNullOrEmpty(hoClean))
+                    foreach (var dCand in dongCandidates)
                     {
-                        records = await FetchPriceRecordsAsync(pnu, "", hoClean, "");
+                        if (!string.IsNullOrEmpty(hoClean))
+                        {
+                            records = await FetchPriceRecordsAsync(pnu, dCand, hoClean, "");
+                            if (records.Count > 0) break;
+                        }
                     }
-                    if (records.Count == 0 && !string.IsNullOrEmpty(dongClean) && !string.IsNullOrEmpty(hoClean))
-                    {
-                        records = await FetchPriceRecordsAsync(pnu, dongClean, hoClean, "");
-                    }
+
                     if (records.Count == 0)
                     {
                         records = await FetchPriceRecordsAsync(pnu, "", "", "");
@@ -202,7 +213,7 @@ namespace OnHouseLocal.Services
         }
 
         /// <summary>
-        /// 주소를 기반으로 PNU를 생성하여 공시가격 조회
+        /// 주소를 기반으로 PNU를 생성하여 공시가격 조회 (전국 지번/도로명 VWorld 실시간 해석 지원)
         /// </summary>
         public async Task<PublicHousingPriceInfo> QueryApartmentPriceByAddressAsync(
             string address, 
@@ -215,6 +226,15 @@ namespace OnHouseLocal.Services
                 return new PublicHousingPriceInfo { Success = false, Message = "주소가 비어 있습니다." };
             }
 
+            // 1. 전국 지번/도로명 주소를 VWorld API로 정밀 19자리 PNU 변환
+            var resolved = await BuildingLedgerService.ResolveAddressWithVWorldAsync(address);
+            if (resolved != null)
+            {
+                string pnu = BuildingLedgerService.BuildPnu(resolved.SigunguCd, resolved.BjdongCd, resolved.Bun, resolved.Ji, resolved.PlatGbCd);
+                return await QueryApartmentPriceAsync(pnu, dongNm, hoNm, exclusiveArea);
+            }
+
+            // 2. 오프라인 폴백 (서울 전 자치구)
             string sigunguCd = "11620";
             string bjdongCd = "10200";
             string bun = "0000";
@@ -249,8 +269,8 @@ namespace OnHouseLocal.Services
                 }
             }
 
-            string pnu = BuildingLedgerService.BuildPnu(sigunguCd, bjdongCd, bun, ji);
-            return await QueryApartmentPriceAsync(pnu, dongNm, hoNm, exclusiveArea);
+            string fallbackPnu = BuildingLedgerService.BuildPnu(sigunguCd, bjdongCd, bun, ji);
+            return await QueryApartmentPriceAsync(fallbackPnu, dongNm, hoNm, exclusiveArea);
         }
 
         private async Task<List<PublicHousingPriceYearItem>> FetchPriceRecordsAsync(string pnu, string dong, string ho, string stdrYear = "")
@@ -320,17 +340,13 @@ namespace OnHouseLocal.Services
         private static string CleanDong(string dong)
         {
             if (string.IsNullOrWhiteSpace(dong)) return "";
-            dong = dong.Trim();
-            var m = Regex.Match(dong, @"^(\d+)동?$");
-            return m.Success ? m.Groups[1].Value : dong.Replace("동", "").Trim();
+            return dong.Trim();
         }
 
         private static string CleanHo(string ho)
         {
             if (string.IsNullOrWhiteSpace(ho)) return "";
-            ho = ho.Trim();
-            var m = Regex.Match(ho, @"^([1-9]\d{1,3})호?$");
-            return m.Success ? m.Groups[1].Value : ho.Replace("호", "").Trim();
+            return Regex.Replace(ho.Trim(), @"[^\d]", "");
         }
 
         private static string GetStr(JsonElement el, string name)

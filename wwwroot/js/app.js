@@ -3715,8 +3715,22 @@ window.openAddressLedgerSearchModal = function() {
   const modal = document.getElementById('modal-address-ledger-search');
   if (modal) {
     modal.style.display = 'flex';
+    const input = document.getElementById('ledger-search-address');
+    if (input && !input.dataset.listenerAttached) {
+      input.dataset.listenerAttached = 'true';
+      input.addEventListener('input', () => {
+        // 주소창을 수동 타이핑 수정 시 이전 주소의 법정동코드가 남지 않도록 초기화
+        const s = document.getElementById('ledger-search-sigunguCd');
+        const b = document.getElementById('ledger-search-bjdongCd');
+        const bn = document.getElementById('ledger-search-bun');
+        const j = document.getElementById('ledger-search-ji');
+        if (s) s.value = '';
+        if (b) b.value = '';
+        if (bn) bn.value = '';
+        if (j) j.value = '';
+      });
+    }
     setTimeout(() => {
-      const input = document.getElementById('ledger-search-address');
       if (input) input.focus();
     }, 100);
   }
@@ -3798,7 +3812,7 @@ window.executeAddressLedgerSearch = async function() {
 
   const originalBtnText = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = '⏳ 국토부 실시간 조회 중...';
+  btn.innerHTML = '⏳ 국토부·VWorld 실시간 조회 중...';
 
   try {
     const params = new URLSearchParams({

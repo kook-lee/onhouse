@@ -210,6 +210,84 @@ namespace OnHouseLocal.Services
             { "수유동", ("11305", "10100") }, { "미아동", ("11305", "10300") }, { "번동", ("11305", "10200") }
         };
 
+        public record ResolvedAddressCodes(
+            string SigunguCd, 
+            string BjdongCd, 
+            string Bun, 
+            string Ji, 
+            string PlatGbCd, 
+            string PlatAddress, 
+            string RoadAddress, 
+            string BuildingName);
+
+        /// <summary>
+        /// 국토교통부 VWorld Geocoder/주소검색 API를 활용하여 전국(서울/경기/인천/지방 전역) 지번/도로명 주소를 19자리 표준 PNU 및 법정동코드로 정밀 변환
+        /// </summary>
+        public static async Task<ResolvedAddressCodes?> ResolveAddressWithVWorldAsync(string rawAddress)
+        {
+            if (string.IsNullOrWhiteSpace(rawAddress)) return null;
+
+            // 동/호수 등 군더더기 제거하여 기본 주소 정제 (예: "경기 성남시 수정구 창곡동 504 3210동 604호" -> "경기 성남시 수정구 창곡동 504")
+            string cleanAddr = Regex.Replace(rawAddress, @"\s*\d{1,4}\s*동\s*", " ").Trim();
+            cleanAddr = Regex.Replace(cleanAddr, @"\s*\d{1,4}\s*호\s*", " ").Trim();
+            cleanAddr = Regex.Replace(cleanAddr, @"\s{2,}", " ").Trim();
+
+            const string vworldKey = "084E3A8F-CACB-426A-BC5A-24920CF543D6";
+            string[] categories = new[] { "parcel", "road" };
+
+            foreach (var cat in categories)
+            {
+                try
+                {
+                    string url = $"https://api.vworld.kr/req/search?service=search&request=search&version=2.0&crs=EPSG:4326&size=5&page=1&query={Uri.EscapeDataString(cleanAddr)}&type=address&category={cat}&format=json&key={vworldKey}";
+                    var resp = await _httpClient.GetAsync(url);
+                    if (!resp.IsSuccessStatusCode) continue;
+
+                    string json = await resp.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(json);
+                    var root = doc.RootElement;
+                    if (!root.TryGetProperty("response", out var rProp)) continue;
+                    string status = rProp.TryGetProperty("status", out var sProp) ? sProp.GetString() ?? "" : "";
+                    if (status != "OK") continue;
+
+                    if (rProp.TryGetProperty("result", out var resProp) &&
+                        resProp.TryGetProperty("items", out var items) &&
+                        items.ValueKind == JsonValueKind.Array &&
+                        items.GetArrayLength() > 0)
+                    {
+                        var first = items[0];
+                        string pnu = first.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? "" : "";
+                        if (pnu.Length >= 19)
+                        {
+                            string sigunguCd = pnu.Substring(0, 5);
+                            string bjdongCd = pnu.Substring(5, 5);
+                            string platGb = pnu.Substring(10, 1) == "2" ? "1" : "0";
+                            string bun = pnu.Substring(11, 4);
+                            string ji = pnu.Substring(15, 4);
+
+                            string parcel = "";
+                            string road = "";
+                            string bldNm = "";
+                            if (first.TryGetProperty("address", out var aProp))
+                            {
+                                parcel = aProp.TryGetProperty("parcel", out var pProp) ? pProp.GetString() ?? "" : "";
+                                road = aProp.TryGetProperty("road", out var rdProp) ? rdProp.GetString() ?? "" : "";
+                                bldNm = aProp.TryGetProperty("bldnm", out var bnProp) ? bnProp.GetString() ?? "" : "";
+                            }
+
+                            return new ResolvedAddressCodes(sigunguCd, bjdongCd, bun, ji, platGb, parcel, road, bldNm);
+                        }
+                    }
+                }
+                catch
+                {
+                    // ignore and fallback
+                }
+            }
+
+            return null;
+        }
+
         /// <summary>
         /// 시군구코드(5), 법정동코드(5), 번지로부터 19자리 표준 PNU(필지고유번호)를 조합
         /// </summary>
@@ -222,9 +300,9 @@ namespace OnHouseLocal.Services
         }
 
         /// <summary>
-        /// 주소를 분석하여 국토교통부 건축HUB 표제부 API 호출
+        /// 주소를 분석하여 국토교통부 건축HUB 표제부 API 호출 (전국 주소 실시간 지원 및 단지 내 동 매칭)
         /// </summary>
-        public async Task<BuildingLedgerInfo> QueryBuildingLedgerAsync(string address)
+        public async Task<BuildingLedgerInfo> QueryBuildingLedgerAsync(string address, string targetDong = "")
         {
             var info = new BuildingLedgerInfo();
             if (string.IsNullOrWhiteSpace(address))
@@ -235,7 +313,32 @@ namespace OnHouseLocal.Services
 
             try
             {
-                // 1. 법정동 및 번지 파싱
+                // 1. 전국 지번/도로명 주소를 VWorld 실시간 API로 정밀 법정동/번지 식별
+                var resolved = await ResolveAddressWithVWorldAsync(address);
+                if (resolved != null)
+                {
+                    var resLedger = await QueryBuildingLedgerByCodesAsync(
+                        resolved.SigunguCd, 
+                        resolved.BjdongCd, 
+                        resolved.Bun, 
+                        resolved.Ji, 
+                        targetDong, 
+                        resolved.PlatGbCd);
+
+                    if (resLedger.Success)
+                    {
+                        if (string.IsNullOrWhiteSpace(resLedger.BuildingName) && !string.IsNullOrWhiteSpace(resolved.BuildingName))
+                            resLedger.BuildingName = resolved.BuildingName;
+                        if (string.IsNullOrWhiteSpace(resLedger.PlatAddress) && !string.IsNullOrWhiteSpace(resolved.PlatAddress))
+                            resLedger.PlatAddress = resolved.PlatAddress;
+                        if (string.IsNullOrWhiteSpace(resLedger.NewPlatAddress) && !string.IsNullOrWhiteSpace(resolved.RoadAddress))
+                            resLedger.NewPlatAddress = resolved.RoadAddress;
+
+                        return resLedger;
+                    }
+                }
+
+                // 2. 오프라인 사전 매핑 (서울시 자치구 및 주요 동) 폴백
                 string sigunguCd = "11620"; // 기본 관악구
                 string bjdongCd = "10200";  // 기본 신림동
                 string bun = "0000";
@@ -282,7 +385,37 @@ namespace OnHouseLocal.Services
                     return info;
                 }
 
-                string url = $"https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo?serviceKey={ServiceKey}&sigunguCd={sigunguCd}&bjdongCd={bjdongCd}&platGbCd=0&bun={bun}&ji={ji}&_type=json";
+                return await QueryBuildingLedgerByCodesAsync(sigunguCd, bjdongCd, bun, ji, targetDong, "0");
+            }
+            catch (Exception ex)
+            {
+                info.Success = false;
+                info.Message = $"건축물대장 조회 중 일시적 오류: {ex.Message}";
+                return info;
+            }
+        }
+
+        /// <summary>
+        /// 시군구코드, 법정동코드, 번, 지를 직접 전달받아 건축물대장을 조회 (단지 내 동 지정 및 총괄표제부 결합 지원)
+        /// </summary>
+        public async Task<BuildingLedgerInfo> QueryBuildingLedgerByCodesAsync(
+            string sigunguCd, 
+            string bjdongCd, 
+            string bun, 
+            string ji, 
+            string targetDong = "", 
+            string platGbCd = "0")
+        {
+            var info = new BuildingLedgerInfo();
+            try
+            {
+                if (string.IsNullOrEmpty(bun)) bun = "0000";
+                if (string.IsNullOrEmpty(ji)) ji = "0000";
+                bun = bun.PadLeft(4, '0');
+                ji = ji.PadLeft(4, '0');
+                string pGb = string.IsNullOrEmpty(platGbCd) ? "0" : platGbCd;
+
+                string url = $"https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo?serviceKey={ServiceKey}&sigunguCd={sigunguCd}&bjdongCd={bjdongCd}&platGbCd={pGb}&bun={bun}&ji={ji}&numOfRows=100&pageNo=1&_type=json";
 
                 var response = await _httpClient.GetAsync(url);
                 if (!response.IsSuccessStatusCode)
@@ -328,6 +461,41 @@ namespace OnHouseLocal.Services
                 if (items.ValueKind == JsonValueKind.Array)
                 {
                     bld = items[0];
+                    // 여러 동이 있는 대단지인 경우, 지정된 동(targetDong)과 일치하는 동 표제부 우선 선택
+                    if (!string.IsNullOrWhiteSpace(targetDong))
+                    {
+                        string cleanDong = targetDong.Trim();
+                        string dongDigits = Regex.Replace(cleanDong, @"[^\d]", "");
+                        bool matched = false;
+
+                        foreach (var it in items.EnumerateArray())
+                        {
+                            string dNm = GetJsonString(it, "dongNm");
+                            if (dNm.Equals(cleanDong, StringComparison.OrdinalIgnoreCase) ||
+                                dNm.Equals(cleanDong + "동", StringComparison.OrdinalIgnoreCase) ||
+                                (!string.IsNullOrEmpty(dongDigits) && (dNm.Contains(dongDigits) || dNm == dongDigits + "동")))
+                            {
+                                bld = it;
+                                matched = true;
+                                break;
+                            }
+                        }
+
+                        // 완벽 일치가 없어도 주거용 주건축물을 우선 배정
+                        if (!matched)
+                        {
+                            foreach (var it in items.EnumerateArray())
+                            {
+                                string purp = GetJsonString(it, "mainPurpsCdNm");
+                                string mainAtch = GetJsonString(it, "mainAtchGbCd");
+                                if (mainAtch == "0" && (purp.Contains("공동주택") || purp.Contains("아파트") || purp.Contains("다세대") || purp.Contains("근린생활")))
+                                {
+                                    bld = it;
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
                 else
                 {
@@ -335,82 +503,12 @@ namespace OnHouseLocal.Services
                 }
 
                 PopulateBuildingLedgerInfo(info, bld);
-            }
-            catch (Exception ex)
-            {
-                info.Success = false;
-                info.Message = $"건축물대장 조회 중 일시적 오류: {ex.Message}";
-            }
 
-            return info;
-        }
-
-        /// <summary>
-        /// 시군구코드, 법정동코드, 번, 지를 직접 전달받아 건축물대장을 조회
-        /// </summary>
-        public async Task<BuildingLedgerInfo> QueryBuildingLedgerByCodesAsync(string sigunguCd, string bjdongCd, string bun, string ji)
-        {
-            var info = new BuildingLedgerInfo();
-            try
-            {
-                if (string.IsNullOrEmpty(bun)) bun = "0000";
-                if (string.IsNullOrEmpty(ji)) ji = "0000";
-                bun = bun.PadLeft(4, '0');
-                ji = ji.PadLeft(4, '0');
-
-                string url = $"https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo?serviceKey={ServiceKey}&sigunguCd={sigunguCd}&bjdongCd={bjdongCd}&platGbCd=0&bun={bun}&ji={ji}&_type=json";
-
-                var response = await _httpClient.GetAsync(url);
-                if (!response.IsSuccessStatusCode)
+                // 동별 표제부에 대지면적/건폐율/용적률이 0인 대단지 아파트인 경우, 총괄표제부 정보로 지표 보완
+                if (info.PlatArea <= 0 || info.BcRat <= 0)
                 {
-                    info.Message = $"건축HUB 응답 오류 (HTTP {response.StatusCode})";
-                    return info;
+                    await SupplementWithRecapTitleInfoAsync(info, sigunguCd, bjdongCd, bun, ji, pGb);
                 }
-
-                string jsonStr = await response.Content.ReadAsStringAsync();
-                using var doc = JsonDocument.Parse(jsonStr);
-
-                var root = doc.RootElement;
-                if (!root.TryGetProperty("response", out var respObj))
-                {
-                    info.Message = "건축HUB 데이터 구조 오류";
-                    return info;
-                }
-
-                var header = respObj.GetProperty("header");
-                string resultCode = header.GetProperty("resultCode").GetString() ?? "";
-                if (resultCode != "00")
-                {
-                    info.Message = header.GetProperty("resultMsg").GetString() ?? "조회 실패";
-                    return info;
-                }
-
-                var body = respObj.GetProperty("body");
-                int totalCount = 0;
-                if (body.TryGetProperty("totalCount", out var tcProp))
-                {
-                    if (tcProp.ValueKind == JsonValueKind.Number) totalCount = tcProp.GetInt32();
-                    else if (tcProp.ValueKind == JsonValueKind.String && int.TryParse(tcProp.GetString(), out int tc)) totalCount = tc;
-                }
-
-                if (totalCount == 0)
-                {
-                    info.Message = "건축물대장 상 건물이 조회되지 않았습니다.";
-                    return info;
-                }
-
-                var items = body.GetProperty("items").GetProperty("item");
-                JsonElement bld;
-                if (items.ValueKind == JsonValueKind.Array)
-                {
-                    bld = items[0];
-                }
-                else
-                {
-                    bld = items;
-                }
-
-                PopulateBuildingLedgerInfo(info, bld);
             }
             catch (Exception ex)
             {
@@ -419,6 +517,50 @@ namespace OnHouseLocal.Services
             }
 
             return info;
+        }
+
+        /// <summary>
+        /// 대단지 아파트 등 동별 표제부의 대지면적이 0인 경우, 국토교통부 총괄표제부를 조회하여 단지 전체 대지면적/건폐율/용적률/주차대수를 보완
+        /// </summary>
+        private static async Task SupplementWithRecapTitleInfoAsync(
+            BuildingLedgerInfo info, 
+            string sigunguCd, 
+            string bjdongCd, 
+            string bun, 
+            string ji, 
+            string platGbCd = "0")
+        {
+            try
+            {
+                string url = $"https://apis.data.go.kr/1613000/BldRgstHubService/getBrRecapTitleInfo?serviceKey={ServiceKey}&sigunguCd={sigunguCd}&bjdongCd={bjdongCd}&platGbCd={platGbCd}&bun={bun}&ji={ji}&_type=json";
+                var resp = await _httpClient.GetAsync(url);
+                if (!resp.IsSuccessStatusCode) return;
+
+                string json = await resp.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                if (!root.TryGetProperty("response", out var rProp)) return;
+                if (!rProp.TryGetProperty("body", out var body)) return;
+                if (!body.TryGetProperty("items", out var itemsObj)) return;
+                if (!itemsObj.TryGetProperty("item", out var items)) return;
+
+                JsonElement recap = items.ValueKind == JsonValueKind.Array ? items[0] : items;
+                double rPlatArea = GetJsonDouble(recap, "platArea");
+                double rBcRat = GetJsonDouble(recap, "bcRat");
+                double rVlRat = GetJsonDouble(recap, "vlRat");
+                int rParking = GetJsonInt(recap, "totPkngCnt");
+                int rHhld = GetJsonInt(recap, "hhldCnt");
+
+                if (info.PlatArea <= 0 && rPlatArea > 0) info.PlatArea = rPlatArea;
+                if (info.BcRat <= 0 && rBcRat > 0) info.BcRat = rBcRat;
+                if (info.VlRat <= 0 && rVlRat > 0) info.VlRat = rVlRat;
+                if (info.TotalParking <= 0 && rParking > 0) info.TotalParking = rParking;
+                if (info.HouseholdCount <= 0 && rHhld > 0) info.HouseholdCount = rHhld;
+            }
+            catch
+            {
+                // 보완 실패 시 기본값 유지
+            }
         }
 
         /// <summary>
@@ -705,10 +847,16 @@ namespace OnHouseLocal.Services
         }
 
         /// <summary>
-        /// 국토교통부 건축HUB 전유공용면적 API 호출하여 호별 전유부/공용부 상세 내역을 수집
+        /// 국토교통부 건축HUB 전유공용면적 API 호출하여 호별 전유부/공용부 상세 내역을 수집 (단지 내 동/호수 타겟 조회 지원)
         /// </summary>
         public async Task<List<ExposPubuseAreaItem>> QueryExposPubuseAreaAsync(
-            string sigunguCd, string bjdongCd, string bun, string ji)
+            string sigunguCd, 
+            string bjdongCd, 
+            string bun, 
+            string ji, 
+            string targetDong = "", 
+            string targetHo = "", 
+            string platGbCd = "0")
         {
             var list = new List<ExposPubuseAreaItem>();
             try
@@ -717,9 +865,52 @@ namespace OnHouseLocal.Services
                 if (string.IsNullOrEmpty(ji)) ji = "0000";
                 bun = bun.PadLeft(4, '0');
                 ji = ji.PadLeft(4, '0');
+                string pGb = string.IsNullOrEmpty(platGbCd) ? "0" : platGbCd;
 
-                string url = $"https://apis.data.go.kr/1613000/BldRgstHubService/getBrExposPubuseAreaInfo?serviceKey={ServiceKey}&sigunguCd={sigunguCd}&bjdongCd={bjdongCd}&platGbCd=0&bun={bun}&ji={ji}&numOfRows=1000&pageNo=1&_type=json";
+                string hoDigits = Regex.Replace(targetHo ?? "", @"[^\d]", "");
 
+                // 1단계: targetHo 및 targetDong 후보군으로 국토부 API 직접 정밀 타겟 쿼리 (대단지 수만건 부하 방지 및 정밀 추출)
+                if (!string.IsNullOrEmpty(hoDigits))
+                {
+                    var dongCandidates = new List<string>();
+                    if (!string.IsNullOrWhiteSpace(targetDong))
+                    {
+                        string dTrim = targetDong.Trim();
+                        dongCandidates.Add(dTrim.EndsWith("동") ? dTrim : dTrim + "동");
+                        dongCandidates.Add(dTrim.Replace("동", "").Trim());
+                    }
+                    dongCandidates.Add(""); // 동 파라미터 없이 호수 단독 시도
+
+                    foreach (var dongCand in dongCandidates)
+                    {
+                        string dQuery = !string.IsNullOrEmpty(dongCand) ? $"&dongNm={Uri.EscapeDataString(dongCand)}" : "";
+                        string hQuery = $"&hoNm={Uri.EscapeDataString(hoDigits)}";
+                        string targetedUrl = $"https://apis.data.go.kr/1613000/BldRgstHubService/getBrExposPubuseAreaInfo?serviceKey={ServiceKey}&sigunguCd={sigunguCd}&bjdongCd={bjdongCd}&platGbCd={pGb}&bun={bun}&ji={ji}{dQuery}{hQuery}&numOfRows=100&pageNo=1&_type=json";
+
+                        var candItems = await FetchExposPubuseFromUrlAsync(targetedUrl);
+                        if (candItems.Count > 0)
+                        {
+                            return candItems;
+                        }
+                    }
+                }
+
+                // 2단계: 호수 직접 쿼리로 안 나오는 경우 최대 1000건 조회하여 로컬 필터링 폴백
+                string fallbackUrl = $"https://apis.data.go.kr/1613000/BldRgstHubService/getBrExposPubuseAreaInfo?serviceKey={ServiceKey}&sigunguCd={sigunguCd}&bjdongCd={bjdongCd}&platGbCd={pGb}&bun={bun}&ji={ji}&numOfRows=1000&pageNo=1&_type=json";
+                return await FetchExposPubuseFromUrlAsync(fallbackUrl);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ExposPubuseArea Warning] {ex.Message}");
+            }
+            return list;
+        }
+
+        private static async Task<List<ExposPubuseAreaItem>> FetchExposPubuseFromUrlAsync(string url)
+        {
+            var list = new List<ExposPubuseAreaItem>();
+            try
+            {
                 var response = await _httpClient.GetAsync(url);
                 if (!response.IsSuccessStatusCode) return list;
 
@@ -745,9 +936,9 @@ namespace OnHouseLocal.Services
                     if (parsed != null) list.Add(parsed);
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"[ExposPubuseArea Warning] {ex.Message}");
+                // ignore
             }
             return list;
         }
@@ -791,14 +982,15 @@ namespace OnHouseLocal.Services
             string bun, 
             string ji, 
             string targetHo, 
-            string targetDong)
+            string targetDong,
+            string platGbCd = "0")
         {
             if (ledger == null || string.IsNullOrWhiteSpace(targetHo)) return;
 
             ledger.TargetHo = targetHo;
             ledger.TargetDong = targetDong;
 
-            var allItems = await QueryExposPubuseAreaAsync(sigunguCd, bjdongCd, bun, ji);
+            var allItems = await QueryExposPubuseAreaAsync(sigunguCd, bjdongCd, bun, ji, targetDong, targetHo, platGbCd);
             if (allItems.Count == 0) return;
 
             // 호수 숫자만 정제 (예: "802호" -> "802")
@@ -810,6 +1002,21 @@ namespace OnHouseLocal.Services
                 x.HoNm.TrimStart('0') == hoDigits.TrimStart('0') ||
                 x.HoNm.Contains(hoDigits)).ToList();
 
+            // 동 지정이 있는 경우 동 필터링
+            if (!string.IsNullOrWhiteSpace(targetDong))
+            {
+                string cleanDong = targetDong.Trim();
+                string dongDigits = Regex.Replace(cleanDong, @"[^\d]", "");
+                var dongFiltered = matchedItems.Where(x => 
+                    x.DongNm.Equals(cleanDong, StringComparison.OrdinalIgnoreCase) ||
+                    x.DongNm.Equals(cleanDong + "동", StringComparison.OrdinalIgnoreCase) ||
+                    (!string.IsNullOrEmpty(dongDigits) && (x.DongNm.Contains(dongDigits) || x.DongNm == dongDigits + "동"))).ToList();
+                if (dongFiltered.Count > 0)
+                {
+                    matchedItems = dongFiltered;
+                }
+            }
+
             if (matchedItems.Count > 0)
             {
                 ledger.ExposPubuseList = matchedItems;
@@ -820,7 +1027,7 @@ namespace OnHouseLocal.Services
                 if (ledger.PlatArea > 0 && ledger.UnitExclusiveArea > 0)
                 {
                     double totalExposArea = allItems.Where(x => x.ExposPubuseGbCdNm == "전유").Sum(x => x.Area);
-                    if (totalExposArea <= 0)
+                    if (totalExposArea <= ledger.UnitExclusiveArea)
                     {
                         int unitCount = ledger.HouseholdCount > 0 ? ledger.HouseholdCount : (ledger.HoCount > 0 ? ledger.HoCount : 50);
                         totalExposArea = ledger.UnitExclusiveArea * unitCount;

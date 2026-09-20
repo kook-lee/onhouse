@@ -341,11 +341,11 @@ try
         {
             bNum = bNum.PadLeft(4, '0');
             jNum = jNum.PadLeft(4, '0');
-            ledger = await ledgerService.QueryBuildingLedgerByCodesAsync(sCd, bCd, bNum, jNum);
+            ledger = await ledgerService.QueryBuildingLedgerByCodesAsync(sCd, bCd, bNum, jNum, targetDong);
         }
         else
         {
-            ledger = await ledgerService.QueryBuildingLedgerAsync(rawAddress);
+            ledger = await ledgerService.QueryBuildingLedgerAsync(rawAddress, targetDong);
             sCd = ledger.SigunguCd;
             bCd = ledger.BjdongCd;
             bNum = ledger.Bun;
@@ -368,13 +368,19 @@ try
         var priceInfo = await vworldService.QueryApartmentPriceAsync(pnu, targetDong, targetHo, ledger.UnitExclusiveArea);
 
         // UI 모달(openLedgerFullModal)과 100% 완벽 호환되는 NaverListingItem 구성
+        string cleanD = !string.IsNullOrEmpty(targetDong) ? (targetDong.EndsWith("동") ? targetDong : $"{targetDong}동") : "";
+        string cleanH = !string.IsNullOrEmpty(targetHo) ? (targetHo.EndsWith("호") ? targetHo : $"{targetHo}호") : "";
+        string floorInfoStr = !string.IsNullOrEmpty(cleanH)
+            ? (!string.IsNullOrEmpty(cleanD) ? $"{cleanD} {cleanH}" : cleanH)
+            : (!string.IsNullOrEmpty(cleanD) ? cleanD : $"지상 {ledger.GrndFlrCnt}층");
+
         var item = new NaverListingItem
         {
             Id = 0,
             ArticleNumber = "주소 직접조회",
             ArticleName = !string.IsNullOrEmpty(ledger.BuildingName.Trim()) ? ledger.BuildingName : (!string.IsNullOrEmpty(rawAddress) ? rawAddress : "건축물대장"),
             Address = !string.IsNullOrEmpty(ledger.PlatAddress) ? ledger.PlatAddress : rawAddress,
-            FloorInfo = string.IsNullOrEmpty(targetHo) ? $"지상 {ledger.GrndFlrCnt}층" : (!string.IsNullOrEmpty(targetDong) ? $"{targetDong}동 {targetHo}호" : $"{targetHo}호"),
+            FloorInfo = floorInfoStr,
             PlatArea = ledger.PlatArea,
             ArchArea = ledger.ArchArea,
             TotArea = ledger.TotArea,
