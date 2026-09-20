@@ -298,6 +298,108 @@ try
         return Results.Ok(ledger);
     });
 
+    // --- [신규] 주소 기반 건축물대장(표제부/전유부) & 호별 대지지분 & 2026 공시가격 종합 즉시 조회 API ---
+    app.MapGet("/api/ledger/lookup-full", async (
+        string? address, 
+        string? dong, 
+        string? ho, 
+        string? sigunguCd, 
+        string? bjdongCd, 
+        string? bun, 
+        string? ji, 
+        BuildingLedgerService ledgerService, 
+        VWorldHousingPriceService vworldService) =>
+    {
+        if (string.IsNullOrWhiteSpace(address) && (string.IsNullOrWhiteSpace(sigunguCd) || string.IsNullOrWhiteSpace(bun)))
+        {
+            return Results.BadRequest(new { success = false, message = "조회할 주소 또는 시군구/번지 정보가 필요합니다." });
+        }
+
+        string rawAddress = address?.Trim() ?? "";
+        string targetDong = dong?.Trim() ?? "";
+        string targetHo = ho?.Trim() ?? "";
+
+        // 주소 문자열 내에 동/호수가 포함된 경우 자동 파싱 (예: "불광동 486-17 1202호")
+        if (string.IsNullOrEmpty(targetDong))
+        {
+            var dm = Regex.Match(rawAddress, @"(\d{1,4})\s*동");
+            if (dm.Success) targetDong = dm.Groups[1].Value;
+        }
+        if (string.IsNullOrEmpty(targetHo))
+        {
+            var hm = Regex.Match(rawAddress, @"([1-9]\d{0,3})\s*호");
+            if (hm.Success) targetHo = hm.Groups[1].Value;
+        }
+
+        BuildingLedgerInfo? ledger = null;
+        string sCd = sigunguCd?.Trim() ?? "";
+        string bCd = bjdongCd?.Trim() ?? "";
+        string bNum = bun?.Trim() ?? "";
+        string jNum = ji?.Trim() ?? "0000";
+
+        if (!string.IsNullOrEmpty(sCd) && !string.IsNullOrEmpty(bCd) && !string.IsNullOrEmpty(bNum))
+        {
+            bNum = bNum.PadLeft(4, '0');
+            jNum = jNum.PadLeft(4, '0');
+            ledger = await ledgerService.QueryBuildingLedgerByCodesAsync(sCd, bCd, bNum, jNum);
+        }
+        else
+        {
+            ledger = await ledgerService.QueryBuildingLedgerAsync(rawAddress);
+            sCd = ledger.SigunguCd;
+            bCd = ledger.BjdongCd;
+            bNum = ledger.Bun;
+            jNum = ledger.Ji;
+        }
+
+        if (ledger == null || !ledger.Success)
+        {
+            return Results.Ok(new { success = false, message = ledger?.Message ?? "해당 주소의 건축물대장을 조회하지 못했습니다." });
+        }
+
+        // 호수가 지정된 경우 전유/공용 및 대지권 상세 연계
+        if (!string.IsNullOrEmpty(targetHo))
+        {
+            await ledgerService.EnrichWithExposPubuseAreaAsync(ledger, sCd, bCd, bNum, jNum, targetHo, targetDong);
+        }
+
+        // VWorld 공동주택 공시가격 및 HUG 126% 산출
+        string pnu = BuildingLedgerService.BuildPnu(sCd, bCd, bNum, jNum);
+        var priceInfo = await vworldService.QueryApartmentPriceAsync(pnu, targetDong, targetHo, ledger.UnitExclusiveArea);
+
+        // UI 모달(openLedgerFullModal)과 100% 완벽 호환되는 NaverListingItem 구성
+        var item = new NaverListingItem
+        {
+            Id = 0,
+            ArticleNumber = "주소 직접조회",
+            ArticleName = !string.IsNullOrEmpty(ledger.BuildingName.Trim()) ? ledger.BuildingName : (!string.IsNullOrEmpty(rawAddress) ? rawAddress : "건축물대장"),
+            Address = !string.IsNullOrEmpty(ledger.PlatAddress) ? ledger.PlatAddress : rawAddress,
+            FloorInfo = string.IsNullOrEmpty(targetHo) ? $"지상 {ledger.GrndFlrCnt}층" : (!string.IsNullOrEmpty(targetDong) ? $"{targetDong}동 {targetHo}호" : $"{targetHo}호"),
+            PlatArea = ledger.PlatArea,
+            ArchArea = ledger.ArchArea,
+            TotArea = ledger.TotArea,
+            BcRat = ledger.BcRat,
+            VlRat = ledger.VlRat,
+            BuildingStructure = ledger.Structure,
+            LedgerStatus = ledger.IsViolatingBuilding ? "Danger" : "Safe",
+            IsViolatingBuilding = ledger.IsViolatingBuilding,
+            LedgerMessage = ledger.Message,
+            PublicPrice = priceInfo.PublicPrice,
+            PublicPriceYear = priceInfo.BaseYear,
+            HugGuaranteeLimit = priceInfo.HugGuaranteeLimit,
+            LedgerRawJson = ledger.RawJson,
+            ApprovalDate = ledger.UseApprovalDate
+        };
+
+        return Results.Ok(new
+        {
+            success = true,
+            item = item,
+            ledger = ledger,
+            priceInfo = priceInfo
+        });
+    });
+
     app.MapPost("/api/properties/audit", async (PropertyItem item, BuildingLedgerService ledgerService) =>
     {
         BuildingLedgerInfo? ledger = null;

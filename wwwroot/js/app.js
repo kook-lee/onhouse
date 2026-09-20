@@ -3710,6 +3710,128 @@ window.toggleNaverViolation = async function(id) {
   }
 };
 
+// --- [신규] 주소로 건축물대장 직접 조회 모달 제어 ---
+window.openAddressLedgerSearchModal = function() {
+  const modal = document.getElementById('modal-address-ledger-search');
+  if (modal) {
+    modal.style.display = 'flex';
+    setTimeout(() => {
+      const input = document.getElementById('ledger-search-address');
+      if (input) input.focus();
+    }, 100);
+  }
+};
+
+window.closeAddressLedgerSearchModal = function() {
+  const modal = document.getElementById('modal-address-ledger-search');
+  if (modal) modal.style.display = 'none';
+};
+
+window.openDaumPostcodeForLedgerSearch = function() {
+  if (typeof daum === 'undefined' || !daum.Postcode) {
+    alert('주소 검색 서비스를 불러오는 중입니다. 잠시 후 다시 클릭해주세요.');
+    return;
+  }
+
+  new daum.Postcode({
+    oncomplete: function(data) {
+      const bcode = data.bcode || '';
+      let sigunguCd = data.sigunguCode || (bcode.length >= 5 ? bcode.substring(0, 5) : '');
+      let bjdongCd = bcode.length >= 10 ? bcode.substring(5, 10) : '';
+
+      let bun = '';
+      let ji = '';
+      const bunjiStr = data.bunji || '';
+      if (bunjiStr) {
+        const parts = bunjiStr.split('-');
+        bun = parts[0];
+        if (parts.length > 1) ji = parts[1];
+      }
+
+      const chosenAddr = data.jibunAddress || data.autoJibunAddress || data.roadAddress || data.address;
+      document.getElementById('ledger-search-address').value = chosenAddr;
+      document.getElementById('ledger-search-sigunguCd').value = sigunguCd;
+      document.getElementById('ledger-search-bjdongCd').value = bjdongCd;
+      document.getElementById('ledger-search-bun').value = bun;
+      document.getElementById('ledger-search-ji').value = ji;
+
+      if (data.buildingName) {
+        const hoInput = document.getElementById('ledger-search-ho');
+        if (hoInput && !hoInput.value) {
+          hoInput.placeholder = `예: ${data.buildingName} 101호`;
+        }
+      }
+    }
+  }).open();
+};
+
+window.setQuickSearchAddress = function(addr, dong, ho, sigunguCd, bjdongCd, bun, ji) {
+  document.getElementById('ledger-search-address').value = addr;
+  document.getElementById('ledger-search-dong').value = dong;
+  document.getElementById('ledger-search-ho').value = ho;
+  document.getElementById('ledger-search-sigunguCd').value = sigunguCd;
+  document.getElementById('ledger-search-bjdongCd').value = bjdongCd;
+  document.getElementById('ledger-search-bun').value = bun;
+  document.getElementById('ledger-search-ji').value = ji;
+  executeAddressLedgerSearch();
+};
+
+window.executeAddressLedgerSearch = async function() {
+  const addrInput = document.getElementById('ledger-search-address');
+  const dongInput = document.getElementById('ledger-search-dong');
+  const hoInput = document.getElementById('ledger-search-ho');
+  const btn = document.getElementById('btn-run-address-ledger');
+
+  const address = (addrInput?.value || '').trim();
+  const dong = (dongInput?.value || '').trim();
+  const ho = (hoInput?.value || '').trim();
+  const sigunguCd = document.getElementById('ledger-search-sigunguCd')?.value || '';
+  const bjdongCd = document.getElementById('ledger-search-bjdongCd')?.value || '';
+  const bun = document.getElementById('ledger-search-bun')?.value || '';
+  const ji = document.getElementById('ledger-search-ji')?.value || '';
+
+  if (!address && (!sigunguCd || !bun)) {
+    alert('조회할 건물 주소를 입력하거나 [🔍 주소 검색] 버튼으로 주소를 선택해주세요.');
+    addrInput?.focus();
+    return;
+  }
+
+  const originalBtnText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ 국토부 실시간 조회 중...';
+
+  try {
+    const params = new URLSearchParams({
+      address: address,
+      dong: dong,
+      ho: ho,
+      sigunguCd: sigunguCd,
+      bjdongCd: bjdongCd,
+      bun: bun,
+      ji: ji
+    });
+
+    const res = await fetch(`/api/ledger/lookup-full?${params.toString()}`);
+    const data = await res.json();
+
+    if (!data.success || !data.item) {
+      alert('❌ 건축물대장 조회 실패: ' + (data.message || '해당 주소의 대장이 존재하지 않거나 지번이 부정확합니다.'));
+      return;
+    }
+
+    closeAddressLedgerSearchModal();
+    window.openLedgerFullModal(data.item);
+    showToastNotification('🏛️ 건축물대장 조회 완료', `${data.item.articleName || address} 표제부 조회가 완료되었습니다.`, '✅');
+
+  } catch (err) {
+    console.error(err);
+    alert('서버 통신 오류가 발생했습니다: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalBtnText;
+  }
+};
+
 // 내 매물 장부로 저장
 window.importNaverListingToProperties = async function(id) {
   const uId = currentUser ? currentUser.id : 1;

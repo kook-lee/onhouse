@@ -20,6 +20,10 @@ namespace OnHouseLocal.Services
         public string RegstrGbCdNm { get; set; } = string.Empty; // 일반 / 집합
         public string MainPurps { get; set; } = string.Empty;
         public string EtcPurps { get; set; } = string.Empty;
+        public string SigunguCd { get; set; } = string.Empty;
+        public string BjdongCd { get; set; } = string.Empty;
+        public string Bun { get; set; } = string.Empty;
+        public string Ji { get; set; } = string.Empty;
 
         // 면적 및 규모 (대지면적, 연면적, 건축면적, 건폐율, 용적률)
         public double PlatArea { get; set; } // 대지면적 (㎡)
@@ -630,6 +634,10 @@ namespace OnHouseLocal.Services
             info.RegstrGbCdNm = GetJsonString(bld, "regstrGbCdNm");
             info.MainPurps = GetJsonString(bld, "mainPurpsCdNm");
             info.EtcPurps = GetJsonString(bld, "etcPurps");
+            info.SigunguCd = GetJsonString(bld, "sigunguCd");
+            info.BjdongCd = GetJsonString(bld, "bjdongCd");
+            info.Bun = GetJsonString(bld, "bun");
+            info.Ji = GetJsonString(bld, "ji");
 
             info.PlatArea = GetJsonDouble(bld, "platArea");
             info.ArchArea = GetJsonDouble(bld, "archArea");
