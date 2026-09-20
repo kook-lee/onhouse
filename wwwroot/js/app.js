@@ -3779,17 +3779,6 @@ window.openDaumPostcodeForLedgerSearch = function() {
   }).open();
 };
 
-window.setQuickSearchAddress = function(addr, dong, ho, sigunguCd, bjdongCd, bun, ji) {
-  document.getElementById('ledger-search-address').value = addr;
-  document.getElementById('ledger-search-dong').value = dong;
-  document.getElementById('ledger-search-ho').value = ho;
-  document.getElementById('ledger-search-sigunguCd').value = sigunguCd;
-  document.getElementById('ledger-search-bjdongCd').value = bjdongCd;
-  document.getElementById('ledger-search-bun').value = bun;
-  document.getElementById('ledger-search-ji').value = ji;
-  executeAddressLedgerSearch();
-};
-
 window.executeAddressLedgerSearch = async function() {
   const addrInput = document.getElementById('ledger-search-address');
   const dongInput = document.getElementById('ledger-search-dong');
