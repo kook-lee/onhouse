@@ -827,8 +827,9 @@ namespace OnHouseLocal.Services
             }
             else if (checkStr.Contains("조립식판넬") || checkStr.Contains("판넬조") || checkStr.Contains("컨테이너") || checkStr.Contains("가설"))
             {
+                info.IsViolatingBuilding = true;
                 info.IsSuspiciousViolation = true;
-                info.ViolationSuspicionReason = "대장 구조에 '조립식판넬/가설구조' 표기 (상층부/옥탑 무단증축 의심)";
+                info.ViolationSuspicionReason = "대장 구조에 '조립식판넬/가설구조' 무단증축 표기 감지 (위반건축물)";
             }
 
             info.PmsDay = GetJsonString(bld, "pmsDay");

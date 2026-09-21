@@ -3335,13 +3335,17 @@ window.openLedgerFullModal = function(item) {
   const useAprDay = raw.useAprDay ? raw.useAprDay.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : (item.approvalDate || '-');
 
   if (tAdmin) {
+    const violationReasonText = item.ledgerMessage && (item.ledgerMessage.includes('무단증축') || item.ledgerMessage.includes('위반') || item.ledgerMessage.includes('조립식판넬'))
+      ? item.ledgerMessage 
+      : '관할 구청 공식 대장 확인 완료 / 이행강제금 부과 및 대출·보증보험 불가';
+
     tAdmin.innerHTML = `
       <tr>
         <th style="${thStyle}">위반건축물 여부</th>
         <td style="${tdStyle}" colspan="3">
           ${itatYn 
-            ? '<b style="color: #ef4444; font-size: 13.5px;">🚨 위반건축물 등재 건물 (관할 구청 공식 대장 확인 완료 / 이행강제금 부과 및 대출·보증보험 불가)</b>' 
-            : '<b style="color: #10b981; font-size: 13px;">✅ 공공API 정상 표제부 (계약 전 정부24 발급본 최종 열람 권장)</b>'}
+            ? `<b style="color: #ef4444; font-size: 13.5px;">🚨 위반건축물 등재 건물 (${escapeHtml(violationReasonText)})</b>` 
+            : '<b style="color: #10b981; font-size: 13px;">✅ 공공API 정상 표제부 (※ 공공 오픈API에는 위반 직인이 비공개되므로 계약 전 정부24 발급본 최종 확인 요망)</b>'}
         </td>
       </tr>
       <tr>
